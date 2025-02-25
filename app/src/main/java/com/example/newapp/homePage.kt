@@ -1,5 +1,6 @@
 package com.example.newapp
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,11 +13,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -27,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -34,35 +40,110 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 @Composable
-fun NavigationOptionsGrid() {
+fun HomeScreen(navController: NavController) {
+    val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(16.dp)
+            .background(Color.White)
+            .statusBarsPadding()
+            //.verticalScroll(scrollState)
 
+    ) {
+        // Top Bar with Home Title and Profile Icon
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            val options = listOf("Start Navigation", "Public Transport", "Object Recognition", "Offline Maps")
-            items(options) { option ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF8F9FA)) // Light Gray Background
-                        .clickable { /* Handle Click */ }
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center,
+            Text(
+                text = "Home",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier.weight(2f),
+                textAlign = TextAlign.Center
+            )
+            Image(
+                painter = painterResource(id = R.drawable.person_icon),
+                contentDescription = "Profile",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clickable { navController.navigate(Routes.profilePage) }
+            )
+        }
 
-                    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // SOS Emergency Button
+        Button(
+            onClick = { /* Handle Emergency */ },
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.emergency_icon),
+                contentDescription = "Alert Icon",
+                modifier = Modifier.size(42.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "SOS EMERGENCY", color = Color.White, fontSize = 22.sp)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Navigation Options
+        NavigationOptionsGrid(navController)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Current Status and Alerts
+        StatusAndAlertsUI()
+
+        Spacer(modifier = Modifier.weight(1f))
+        Footer(navController)
+    }
+}
+
+@Composable
+fun NavigationOptionsGrid(navController: NavController) {
+    val options = listOf(
+        Triple("Start Navigation", R.drawable.navigate_icon, Routes.navigationPage),
+        Triple("Public Transport", R.drawable.bus_icon, Routes.profilePage),
+        Triple("Object Recognition", R.drawable.recog_icon, Routes.navigationPage),
+        Triple("Offline Maps", R.drawable.map_icon, Routes.navigationPage)
+    )
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(options) { (label, iconRes, path) ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.5f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF5F5F5))
+                    .clickable { navController.navigate(path) }
+                    .padding(1.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = label,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = option,
-                        fontSize = 18.sp,
+                        text = label,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         color = Color.Black
@@ -72,7 +153,6 @@ fun NavigationOptionsGrid() {
         }
     }
 }
-
 @Composable
 fun StatusAndAlertsUI() {
     Column(
@@ -82,16 +162,12 @@ fun StatusAndAlertsUI() {
     ) {
         // Current Status Card
         Card(
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)) // Changed to requested color
         ) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-            ) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "Current Status",
                     fontSize = 20.sp,
@@ -101,17 +177,37 @@ fun StatusAndAlertsUI() {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("📡 Connected to GPS", fontSize = 16.sp)
+                    Image(
+                        painter = painterResource(id = R.drawable.wifi_icon),
+                        contentDescription = "GPS Icon",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Connected to GPS", fontSize = 16.sp)
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🔊 Audio Guidance Active", fontSize = 16.sp)
+                    Image(
+                        painter = painterResource(id = R.drawable.audio_icon),
+                        contentDescription = "Audio Icon",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Audio Guidance Active", fontSize = 16.sp)
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("📳 Haptic Feedback On", fontSize = 16.sp)
+                    Image(
+                        painter = painterResource(id = R.drawable.smartphone_icon),
+                        contentDescription = "Haptic Icon",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Haptic Feedback On", fontSize = 16.sp)
                 }
             }
         }
@@ -127,76 +223,33 @@ fun StatusAndAlertsUI() {
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Crosswalk Alert
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))
+        // Alert Cards
+        val alerts = listOf(
+            Pair("Crosswalk ahead - 20m", R.drawable.cross_icon),
+            Pair("Construction work - 50m", R.drawable.construction_icon)
+        )
 
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+        alerts.forEach { (text, iconRes) ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
             ) {
-                Text("🚶 Crosswalk ahead - 20m", fontSize = 16.sp)
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = text,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text, fontSize = 16.sp)
+                }
             }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Construction Alert
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("🚧 Construction work - 50m", fontSize = 16.sp)
-            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
-}
-
-
-@Composable
-fun HomeScreen(navController: NavController) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .background(Color.White)
-            .statusBarsPadding()
-    ) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // SOS Emergency Button
-        Button(
-            onClick = {
-                navController.navigate(Routes.profilePage)
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("🚨 SOS EMERGENCY", color = Color.White, fontSize = 18.sp)
-        }
-
-
-        // Navigation Options
-        Box(modifier = Modifier.height(400.dp)) {
-            NavigationOptionsGrid()
-        }
-
-        // Current Status
-        StatusAndAlertsUI()
-
-        Spacer(modifier = Modifier.weight(1f))
-        Footer(navController)
-    }
-
 }
