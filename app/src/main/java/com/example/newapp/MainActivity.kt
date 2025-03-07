@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setApiKey() // ✅ Set API Key before rendering UI
+        setApiKey()
 
         setContent {
             val navController = rememberNavController()

@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,8 +38,39 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
+import android.content.Context
+import android.location.LocationManager
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+
 @Composable
 fun HomeScreen(navController: NavController) {
+
+    val context = LocalContext.current
+    var isGpsEnabled by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            isGpsEnabled = checkGpsStatus(context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            isGpsEnabled = checkGpsStatus(context)
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
     val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
@@ -101,11 +131,16 @@ fun HomeScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(16.dp))
 
         // Current Status and Alerts
-        StatusAndAlertsUI()
+        StatusAndAlertsUI(isGpsEnabled)
 
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)
     }
+}
+
+fun checkGpsStatus(context: Context): Boolean {
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
 }
 
 @Composable
@@ -154,7 +189,7 @@ fun NavigationOptionsGrid(navController: NavController) {
     }
 }
 @Composable
-fun StatusAndAlertsUI() {
+fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -183,7 +218,10 @@ fun StatusAndAlertsUI() {
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Connected to GPS", fontSize = 16.sp)
+                    Text(
+                        text = if (isGpsEnabled) "Connected to GPS" else "GPS is OFF",
+                        fontSize = 16.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
