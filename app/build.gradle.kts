@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.newapp"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -58,4 +58,20 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     implementation(libs.androidx.navigation.compose)
+
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
+//    implementation(libs.pusher)
+//    implementation(libs.google.maps)
+//    implementation(libs.retrofit)
+//    implementation(libs.retrofit.converter.scalars)
+
+    // ArcGIS Maps for Kotlin - SDK dependency
+    implementation(libs.arcgis.maps.kotlin)
+    // Toolkit dependencies
+    implementation(platform(libs.arcgis.maps.kotlin.toolkit.bom))
+    implementation(libs.arcgis.maps.kotlin.toolkit.geoview.compose)
+    // Additional modules from Toolkit, if needed, such as:
+    // implementation(libs.arcgis.maps.kotlin.toolkit.authentication)
+
 }

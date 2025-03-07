@@ -5,4 +5,5 @@ object Routes {
     var profilePage = "profilePage"
     var navigationPage = "navigationPage"
     var alertsPage = "alertsPage"
+    var offlineMapPage= "offlineMap"
 }

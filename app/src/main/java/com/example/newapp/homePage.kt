@@ -114,7 +114,7 @@ fun NavigationOptionsGrid(navController: NavController) {
         Triple("Start Navigation", R.drawable.navigate_icon, Routes.navigationPage),
         Triple("Public Transport", R.drawable.bus_icon, Routes.profilePage),
         Triple("Object Recognition", R.drawable.recog_icon, Routes.navigationPage),
-        Triple("Offline Maps", R.drawable.map_icon, Routes.navigationPage)
+        Triple("Offline Maps", R.drawable.map_icon, Routes.offlineMapPage)
     )
 
     LazyVerticalGrid(
