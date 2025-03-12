@@ -14,13 +14,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.navigation.NavController
 
+
+import androidx.compose.material3.*
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+
+
 @Composable
-fun ProfilePage(navController: NavController) {
+fun ProfilePage(googleAuthClient: GoogleAuthClient,
+                lifecycleOwner: LifecycleOwner,
+                navController: NavController
+) {
+    var isSignIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -74,7 +89,30 @@ fun ProfilePage(navController: NavController) {
                 Text(text = "John Doe", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(text = "ID: 52417", fontSize = 14.sp, color = Color.Gray)
             }
+            Spacer(modifier = Modifier.width(86.dp))
+            Box(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.background),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSignIn) {
+              OutlinedButton(onClick = {
+                  lifecycleOwner.lifecycleScope.launch {
+                      googleAuthClient.signOut()
+                      isSignIn = false
+                  }
+              }) {
+                  Text(
+                      text = "Sign Out",
+                      fontSize = 16.sp,
+                  )
+              }
+                } else {
+                    navController.navigate(Routes.GoogleSignInScreen)
+                }
+            }
         }
+
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -115,6 +153,7 @@ fun EmergencyContactCard(name: String, type: String) {
             contentDescription = "Contact Icon",
             modifier = Modifier.size(24.dp)
         )
+
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = name, fontWeight = FontWeight.Bold, fontSize = 16.sp)

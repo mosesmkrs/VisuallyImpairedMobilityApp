@@ -10,6 +10,7 @@ import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
 
 class MainActivity : ComponentActivity() {
+    private lateinit var googleAuthClient: GoogleAuthClient
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -17,15 +18,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val navController = rememberNavController()
+            googleAuthClient = GoogleAuthClient(applicationContext)
             NavHost(
                 navController = navController,
-                startDestination = Routes.homeScreen
+                startDestination = Routes.GoogleSignInScreen
             ) {
                 composable(Routes.homeScreen) {
                     HomeScreen(navController)
                 }
                 composable(Routes.profilePage) {
-                    ProfilePage(navController)
+                    ProfilePage( googleAuthClient = googleAuthClient,
+                        lifecycleOwner = this@MainActivity,
+                        navController)
                 }
                 composable(Routes.navigationPage) {
                     NavigationPage(navController)
@@ -35,6 +39,15 @@ class MainActivity : ComponentActivity() {
                 }
                 composable(Routes.offlineMapPage){
                     OfflineMap(navController)
+                }
+                composable(Routes.GoogleSignInScreen){
+                    GoogleSignInScreen(  googleAuthClient = googleAuthClient,
+                        lifecycleOwner = this@MainActivity,
+                        navController
+                    )
+                }
+                composable(Routes.ContactFormScreen){
+                    ContactFormScreen(navController)
                 }
             }
         }

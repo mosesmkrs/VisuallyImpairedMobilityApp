@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "521750377491",
+    "project_id": "visuallyimpairedmobilityapp",
+    "storage_bucket": "visuallyimpairedmobilityapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:521750377491:android:49fc47eabd133bff537be6",
+        "android_client_info": {
+          "package_name": "com.example.newapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "521750377491-v3ivj3duirqb8097bkrat7m0idct49fh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.newapp",
+            "certificate_hash": "a079460c4f5d9b5fe927c6be513c840d4b7b1b53"
+          }
+        },
+        {
+          "client_id": "521750377491-g55tj7lfn06dmma98a1iakd9cn3jmlh3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvj7VTuOhnFmWROEQQw7bJjW816SoVqyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "521750377491-g55tj7lfn06dmma98a1iakd9cn3jmlh3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

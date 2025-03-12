@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.gms.google.services)
 }
 
 android {
@@ -36,6 +37,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.9"
     }
 }
 
@@ -74,4 +79,11 @@ dependencies {
     // Additional modules from Toolkit, if needed, such as:
     // implementation(libs.arcgis.maps.kotlin.toolkit.authentication)
 
+
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth.ktx)
 }

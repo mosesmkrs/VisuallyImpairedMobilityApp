@@ -6,4 +6,6 @@ object Routes {
     var navigationPage = "navigationPage"
     var alertsPage = "alertsPage"
     var offlineMapPage= "offlineMap"
+    var GoogleSignInScreen = "GoogleSignInScreen"
+    var ContactFormScreen = "ContactFormScreen"
 }

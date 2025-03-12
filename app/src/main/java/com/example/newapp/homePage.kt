@@ -109,7 +109,7 @@ fun HomeScreen(navController: NavController) {
 
         // SOS Emergency Button
         Button(
-            onClick = { /* Handle Emergency */ },
+            onClick = { navController.navigate(Routes.ContactFormScreen) },
             colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
@@ -147,8 +147,8 @@ fun checkGpsStatus(context: Context): Boolean {
 fun NavigationOptionsGrid(navController: NavController) {
     val options = listOf(
         Triple("Start Navigation", R.drawable.navigate_icon, Routes.navigationPage),
-        Triple("Public Transport", R.drawable.bus_icon, Routes.profilePage),
-        Triple("Object Recognition", R.drawable.recog_icon, Routes.navigationPage),
+//        Triple("Public Transport", R.drawable.bus_icon, Routes.profilePage),
+//        Triple("Object Recognition", R.drawable.recog_icon, Routes.navigationPage),
         Triple("Offline Maps", R.drawable.map_icon, Routes.offlineMapPage)
     )
 
