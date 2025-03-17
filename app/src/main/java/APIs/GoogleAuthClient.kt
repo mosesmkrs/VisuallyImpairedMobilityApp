@@ -1,4 +1,4 @@
-package com.example.newapp
+package APIs
 
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
@@ -23,6 +23,19 @@ class GoogleAuthClient(
 
     private val credentialManager = CredentialManager.create(context)
     private val firebaseAuth = FirebaseAuth.getInstance()
+
+    fun getUserName(): String? {
+        return firebaseAuth.currentUser?.displayName
+    }
+
+    fun getUserEmail(): String? {
+        return firebaseAuth.currentUser?.email
+    }
+
+    fun getUserPhotoUrl(): String? {
+        return firebaseAuth.currentUser?.photoUrl?.toString()
+    }
+
 
     fun isSingedIn(): Boolean {
         if (firebaseAuth.currentUser != null) {

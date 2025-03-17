@@ -1,4 +1,4 @@
-package com.example.newapp
+package components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +16,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.navigation.NavController
+import com.example.newapp.R
+import com.example.newapp.Routes
 
 @Composable
 fun Footer(navController: NavController) {
@@ -23,9 +25,7 @@ fun Footer(navController: NavController) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(vertical = 8.dp)
-            .height(86.dp)
-            .navigationBarsPadding(),
+            .height(80.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {

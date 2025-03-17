@@ -1,4 +1,4 @@
-package com.example.newapp
+package pages
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.newapp.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
