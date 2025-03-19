@@ -1,5 +1,6 @@
 package com.example.newapp
 
+import APIs.GoogleAuthClient
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +9,15 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.composable
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
+import com.arcgismaps.BuildConfig
+import pages.AlertsPage
+import pages.ContactFormScreen
+import pages.GoogleSignInScreen
+import pages.HomeScreen
+import pages.NavigationPage
+import pages.OfflineMap
+import pages.ProfilePage
+import pages.SecondaryContactForm
 
 class MainActivity : ComponentActivity() {
     private lateinit var googleAuthClient: GoogleAuthClient
@@ -24,7 +34,9 @@ class MainActivity : ComponentActivity() {
                 startDestination = Routes.GoogleSignInScreen
             ) {
                 composable(Routes.homeScreen) {
-                    HomeScreen(navController)
+                    HomeScreen( googleAuthClient = googleAuthClient,
+                        lifecycleOwner = this@MainActivity,
+                        navController)
                 }
                 composable(Routes.profilePage) {
                     ProfilePage( googleAuthClient = googleAuthClient,
@@ -49,11 +61,15 @@ class MainActivity : ComponentActivity() {
                 composable(Routes.ContactFormScreen){
                     ContactFormScreen(navController)
                 }
+                composable(Routes.SecondaryContactForm){
+                    SecondaryContactForm(navController)
+                }
             }
         }
     }
 
     private fun setApiKey() {
-        ArcGISEnvironment.apiKey = ApiKey.create("AAPTxy8BH1VEsoebNVZXo8HurGu9cQcYKiJgHHRM-fKgLmr64fiBDAtblVFYCJD0E6grZzMq1xQp7o_RiBLr-ANCdYXdRK_Wvc1pk2-lxvUzrSLAXEN3S6uZpw4y-43cxdKq4GG6gheC7XgJ0dfDPCEZOb5zWprokyXd9YUkKJzKU5O-rgv6yT5H2cD5lLieYddCiVtQr_15ws1VUA-F4ZZUjkHfJT6cePd7OPn5ltgIvNo.AT1_7QiQK66R")
+        val ARCGIS_API_KEY = com.example.newapp.BuildConfig.API_KEY
+        ArcGISEnvironment.apiKey = ApiKey.create(ARCGIS_API_KEY)
     }
 }

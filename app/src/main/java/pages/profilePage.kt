@@ -1,4 +1,4 @@
-package com.example.newapp
+package pages
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,10 +23,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.navigation.NavController
 
-
+import coil.compose.AsyncImage
 import androidx.compose.material3.*
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import components.Footer
+import APIs.GoogleAuthClient
+import com.example.newapp.R
+import com.example.newapp.Routes
 import kotlinx.coroutines.launch
 
 
@@ -36,18 +40,23 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 navController: NavController
 ) {
     var isSignIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
+    var userName by remember { mutableStateOf(googleAuthClient.getUserName() ?: "Unknown") }
+    var userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
+    var userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(24.dp)
             .statusBarsPadding()
     ) {
         // Profile Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
+                .padding(horizontal = 24.dp)
+                .padding(vertical = 12.dp)
         ) {
             // Centered Profile Text
             Text(
@@ -75,63 +84,113 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 24.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.person_icon),
-                contentDescription = "Profile Picture",
-                modifier = Modifier
-                    .size(54.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(text = "John Doe", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(text = "ID: 52417", fontSize = 14.sp, color = Color.Gray)
+            if (userPhoto != null) {
+                AsyncImage(
+                    model = userPhoto,
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.person_icon),
+                    contentDescription = "Default Profile Picture",
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Fit
+                )
             }
-            Spacer(modifier = Modifier.width(86.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = userName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = userEmail, fontSize = 14.sp, color = Color.Gray)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
             Box(
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
                 if (isSignIn) {
-              OutlinedButton(onClick = {
-                  lifecycleOwner.lifecycleScope.launch {
-                      googleAuthClient.signOut()
-                      isSignIn = false
-                  }
-              }) {
-                  Text(
-                      text = "Sign Out",
-                      fontSize = 16.sp,
-                  )
-              }
-                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable {
+                                    showLogoutDialog = true
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.logout),
+                            contentDescription = "Logout",
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                else {
                     navController.navigate(Routes.GoogleSignInScreen)
                 }
             }
         }
 
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false }, // Dismiss dialog on outside tap
+                confirmButton = {
+                    TextButton(onClick = {
+                        lifecycleOwner.lifecycleScope.launch {
+                            googleAuthClient.signOut()
+                            isSignIn = false
+                            isSignIn = false
+                            userName = "Unknown"
+                            userEmail = "No Email"
+                            userPhoto = null
+                            showLogoutDialog = false
+                            navController.navigate(Routes.GoogleSignInScreen) // Navigate to login screen
+                        }
+                    }) {
+                        Text("Logout", color = Color.Red)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+                title = { Text("Confirm Logout") },
+                text = { Text("Are you sure you want to logout?") }
+            )
+        }
+
+
+
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Emergency Contacts
-        Text(text = "Emergency Contacts", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            // Emergency Contacts
+            Text( text = "Emergency Contacts", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
 
-        EmergencyContactCard("Jane Doe", "Primary Contact")
-        EmergencyContactCard("Jane Doe", "Secondary Contact")
+            EmergencyContactCard("Jane Doe", "Primary Contact")
+            EmergencyContactCard("Jane Doe", "Secondary Contact")
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Settings
-        Text(text = "Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            // Settings
+            Text(text = "Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
 
-        SettingItem("Alert Settings", R.drawable.alert_icon)
-        SettingItem("Audio Settings", R.drawable.audio_icon)
-        SettingItem("Security & Privacy", R.drawable.shield_icon)
+            SettingItem("Alert Settings", R.drawable.alert_icon)
+            SettingItem("Audio Settings", R.drawable.audio_icon)
+            SettingItem("Security & Privacy", R.drawable.shield_icon)
+        }
+
 
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)

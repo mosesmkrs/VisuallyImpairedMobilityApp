@@ -8,4 +8,5 @@ object Routes {
     var offlineMapPage= "offlineMap"
     var GoogleSignInScreen = "GoogleSignInScreen"
     var ContactFormScreen = "ContactFormScreen"
+    var SecondaryContactForm = "SecondaryContactForm"
 }

@@ -1,4 +1,4 @@
-package com.example.newapp
+package pages
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -44,13 +44,24 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
+import coil.compose.AsyncImage
+import components.Footer
+import APIs.GoogleAuthClient
+import com.example.newapp.R
+import com.example.newapp.Routes
 
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(googleAuthClient: GoogleAuthClient,
+               lifecycleOwner: LifecycleOwner,
+               navController: NavController) {
 
+    var userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     val context = LocalContext.current
     var isGpsEnabled by remember { mutableStateOf(false) }
 
@@ -75,8 +86,6 @@ fun HomeScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .background(Color.White)
             .statusBarsPadding()
             //.verticalScroll(scrollState)
 
@@ -85,7 +94,8 @@ fun HomeScreen(navController: NavController) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
+                .padding(vertical = 16.dp)
+                .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -96,13 +106,27 @@ fun HomeScreen(navController: NavController) {
                 modifier = Modifier.weight(2f),
                 textAlign = TextAlign.Center
             )
-            Image(
-                painter = painterResource(id = R.drawable.person_icon),
-                contentDescription = "Profile",
-                modifier = Modifier
-                    .size(32.dp)
-                    .clickable { navController.navigate(Routes.profilePage) }
-            )
+            if (userPhoto != null) {
+                AsyncImage(
+                    model = userPhoto,
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { navController.navigate(Routes.profilePage) },
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.person_icon),
+                    contentDescription = "Default Profile Picture",
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .clickable { navController.navigate(Routes.profilePage) },
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -113,6 +137,7 @@ fun HomeScreen(navController: NavController) {
             colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 20.dp),
         ) {
             Image(
                 painter = painterResource(id = R.drawable.emergency_icon),
@@ -157,6 +182,7 @@ fun NavigationOptionsGrid(navController: NavController) {
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = 20.dp),
     ) {
         items(options) { (label, iconRes, path) ->
             Box(
@@ -193,7 +219,8 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(vertical = 10.dp)
+            .padding(horizontal = 20.dp)
     ) {
         // Current Status Card
         Card(

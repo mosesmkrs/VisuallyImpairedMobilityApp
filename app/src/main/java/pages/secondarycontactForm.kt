@@ -1,5 +1,6 @@
-package com.example.newapp
+package pages
 
+import retrofit2.Call
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,16 +15,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.newapp.Routes
+import APIs.secondaryContactApiClient
+import APIs.secondaryContactRequest
+import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
-fun ContactFormScreen(navController: NavController) {
+fun SecondaryContactForm(navController: NavController) {
     val context = LocalContext.current
 
-    // Primary Contact
-    var primaryName by remember { mutableStateOf("") }
-    var primaryPhone by remember { mutableStateOf("") }
-    var primaryNameError by remember { mutableStateOf<String?>(null) }
-    var primaryPhoneError by remember { mutableStateOf<String?>(null) }
 
     // Secondary Contact
     var secondaryName by remember { mutableStateOf("") }
@@ -34,20 +34,6 @@ fun ContactFormScreen(navController: NavController) {
     fun validateForm(): Boolean {
         var isValid = true
 
-        // Validate primary contact
-        if (primaryName.isBlank()) {
-            primaryNameError = "Full name is required"
-            isValid = false
-        } else {
-            primaryNameError = null
-        }
-
-        if (!primaryPhone.matches(Regex("^\\d{10}$"))) {
-            primaryPhoneError = "Enter a valid 10-digit phone number"
-            isValid = false
-        } else {
-            primaryPhoneError = null
-        }
 
         // Validate secondary contact
         if (secondaryName.isBlank()) {
@@ -67,6 +53,32 @@ fun ContactFormScreen(navController: NavController) {
         return isValid
     }
 
+    fun submitContact() {
+        if (!validateForm()) return
+
+        val newContact = secondaryContactRequest(
+            contact_name = secondaryName,
+            contact_phone = secondaryPhone,
+            relationship = "secondary"
+        )
+
+        secondaryContactApiClient.api.createSecondaryEmergencyContact(newContact).enqueue(object : retrofit2.Callback<Void> {
+            override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
+                if (response.isSuccessful) {
+                    Toast.makeText(context, "Contact saved!", Toast.LENGTH_SHORT).show()
+                    navController.navigate(Routes.homeScreen)
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    Toast.makeText(context, "Failed to save contact: $errorBody", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            override fun onFailure(call: Call<Void>, t: Throwable) {
+                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -75,37 +87,12 @@ fun ContactFormScreen(navController: NavController) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "Emergency Contact Information Form",
+            text = "Emergency secondary contact",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
             textAlign = TextAlign.Center
         )
-        Text("Primary Contact", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = primaryName,
-            onValueChange = { primaryName = it },
-            label = { Text("Full Name") },
-            isError = primaryNameError != null,
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (primaryNameError != null) {
-            Text(primaryNameError!!, color = MaterialTheme.colorScheme.error)
-        }
-
-        OutlinedTextField(
-            value = primaryPhone,
-            onValueChange = { primaryPhone = it },
-            label = { Text("Phone Number") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            isError = primaryPhoneError != null,
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (primaryPhoneError != null) {
-            Text(primaryPhoneError!!, color = MaterialTheme.colorScheme.error)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         Text("Secondary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
@@ -134,12 +121,7 @@ fun ContactFormScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(
-            onClick = {
-                if (validateForm()) {
-                    Toast.makeText(context, "Form Submitted Successfully!", Toast.LENGTH_SHORT).show()
-                    navController.navigate(Routes.homeScreen)
-                }
-            },
+            onClick = { navController.navigate(Routes.homeScreen) },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Submit")
