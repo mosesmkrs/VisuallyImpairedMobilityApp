@@ -1,28 +1,42 @@
 package pages
 
+import APIs.GoogleAuthClient
+import APIs.UserApiClient
+import APIs.UserRequest
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
-import kotlinx.coroutines.launch
-
-import androidx.compose.foundation.Image
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import APIs.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
+import kotlinx.coroutines.launch
+import retrofit2.Call
 
 
 @Composable
@@ -31,7 +45,37 @@ fun GoogleSignInScreen(
     lifecycleOwner: LifecycleOwner,
     navController: NavController
 ) {
+    val context = LocalContext.current
     var isSignIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
+    val userId by remember { mutableStateOf(googleAuthClient.getUserId()) }
+    val userName by remember { mutableStateOf(googleAuthClient.getUserName() ?: "Unknown") }
+    val userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
+
+
+    fun submitUser() {
+
+        val newUser = UserRequest(
+            firebaseuid = userId,
+            username = userName,
+            email = userEmail,
+        )
+
+        UserApiClient.api.createUser(newUser).enqueue(object : retrofit2.Callback<Void> {
+            override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
+                if (response.isSuccessful) {
+                    Toast.makeText(context, "Contact saved!", Toast.LENGTH_SHORT).show()
+                    navController.navigate(Routes.SecondaryContactForm)
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    Toast.makeText(context, "Failed to save contact: $errorBody", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            override fun onFailure(call: Call<Void>, t: Throwable) {
+                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
 
     Column(
         modifier = Modifier
@@ -76,23 +120,12 @@ fun GoogleSignInScreen(
         ) {
             if (isSignIn) {
                 navController.navigate(Routes.ContactFormScreen)
-//                OutlinedButton(onClick = {
-//                    lifecycleOwner.lifecycleScope.launch {
-//                        googleAuthClient.signOut()
-//                        isSignIn = false
-//                    }
-//                    navController.navigate(Routes.GoogleSignInScreen)
-//                }) {
-//                    Text(
-//                        text = "Sign Out",
-//                        fontSize = 16.sp,
-//                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
-//                    )
-//                }
             } else {
                 OutlinedButton(onClick = {
                     lifecycleOwner.lifecycleScope.launch {
                         isSignIn = googleAuthClient.signIn()
+
+                        submitUser()
                     }
                 }) {
                     Text(
