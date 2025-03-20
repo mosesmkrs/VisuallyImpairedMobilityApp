@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,7 +60,7 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
                lifecycleOwner: LifecycleOwner,
                navController: NavController) {
 
-    var userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
+    val userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     val context = LocalContext.current
     var isGpsEnabled by remember { mutableStateOf(false) }
 
@@ -82,7 +81,6 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
-    val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()

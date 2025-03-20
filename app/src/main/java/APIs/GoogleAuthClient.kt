@@ -24,6 +24,9 @@ class GoogleAuthClient(
     private val credentialManager = CredentialManager.create(context)
     private val firebaseAuth = FirebaseAuth.getInstance()
 
+    fun getUserId(): String? {
+        return firebaseAuth.currentUser?.uid
+    }
     fun getUserName(): String? {
         return firebaseAuth.currentUser?.displayName
     }

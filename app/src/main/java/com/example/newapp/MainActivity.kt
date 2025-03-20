@@ -9,7 +9,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.composable
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
-import com.arcgismaps.BuildConfig
 import pages.AlertsPage
 import pages.ContactFormScreen
 import pages.GoogleSignInScreen
@@ -69,7 +68,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setApiKey() {
-        val ARCGIS_API_KEY = com.example.newapp.BuildConfig.API_KEY
-        ArcGISEnvironment.apiKey = ApiKey.create(ARCGIS_API_KEY)
+        val arcgisKey = BuildConfig.API_KEY
+        ArcGISEnvironment.apiKey = ApiKey.create(arcgisKey)
     }
 }
