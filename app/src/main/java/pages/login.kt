@@ -124,8 +124,6 @@ fun GoogleSignInScreen(
                 OutlinedButton(onClick = {
                     lifecycleOwner.lifecycleScope.launch {
                         isSignIn = googleAuthClient.signIn()
-
-                        submitUser()
                     }
                 }) {
                     Text(
