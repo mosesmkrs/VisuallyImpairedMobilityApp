@@ -9,7 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -67,7 +69,7 @@ fun GoogleSignInScreen(
                     navController.navigate(Routes.SecondaryContactForm)
                 } else {
                     val errorBody = response.errorBody()?.string()
-                    Toast.makeText(context, "Failed to save contact: $errorBody", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Failed to save user: $errorBody", Toast.LENGTH_LONG).show()
                 }
             }
 
@@ -81,15 +83,18 @@ fun GoogleSignInScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(top = 28.dp),
+            .padding(16.dp),
+            //.padding(top = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
             painter = painterResource(id = R.drawable.img),
             contentDescription = "App Logo",
             modifier = Modifier
-                .width(401.dp)
-                .height(448.dp)
+//                .width(401.dp)
+//                .height(448.dp)
+                .fillMaxWidth()
+                .aspectRatio(1f)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -99,22 +104,30 @@ fun GoogleSignInScreen(
             color = Color.Black,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f) // Allow to grow
         )
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        //Subtitle
 
         Text(
             text = "Your navigation assistant!",
             color = Color.Gray,
             fontSize = 18.sp,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f)
         )
 
         Spacer(modifier = Modifier.height(52.dp))
 
+        //Sign In Button
+
         Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
                 .background(MaterialTheme.colorScheme.background),
             contentAlignment = Alignment.Center
         ) {
