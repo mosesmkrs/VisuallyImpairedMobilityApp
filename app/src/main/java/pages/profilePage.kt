@@ -28,7 +28,7 @@ import androidx.compose.material3.*
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import components.Footer
-import APIs.GoogleAuthClient
+import apis.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
 import kotlinx.coroutines.launch
@@ -175,8 +175,12 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             Text( text = "Emergency Contacts", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
 
-            EmergencyContactCard("Jane Doe", "Primary Contact")
-            EmergencyContactCard("Jane Doe", "Secondary Contact")
+            EmergencyContactCard("Jane Doe", "Primary Contact") {
+                navController.navigate(Routes.ContactFormScreen)
+            }
+            EmergencyContactCard("Jane Doe", "Secondary Contact") {
+                navController.navigate(Routes.SecondaryContactForm)
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -198,13 +202,14 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
 }
 
 @Composable
-fun EmergencyContactCard(name: String, type: String) {
+fun EmergencyContactCard(name: String, type: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFFEFEFEF), shape = RoundedCornerShape(12.dp)) // Rounded corners
             .clip(RoundedCornerShape(12.dp))
-            .padding(12.dp),
+            .padding(12.dp)
+            .clickable{ onClick() },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(

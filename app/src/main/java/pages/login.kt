@@ -1,17 +1,15 @@
 package pages
 
-import APIs.GoogleAuthClient
-import APIs.UserApiClient
-import APIs.UserRequest
+import apis.UserApiClient
+import apis.UserRequest
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -35,10 +33,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
+import apis.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
 import kotlinx.coroutines.launch
+import okhttp3.ResponseBody
 import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import com.google.gson.Gson
+import java.time.LocalDateTime
 
 
 @Composable
@@ -56,87 +60,70 @@ fun GoogleSignInScreen(
 
     fun submitUser() {
 
-        val newUser = UserRequest(
-            firebaseuid = userId,
-            username = userName,
-            email = userEmail,
-        )
+        val userRequest = UserRequest(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
 
-        UserApiClient.api.createUser(newUser).enqueue(object : retrofit2.Callback<Void> {
-            override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
+        val call = UserApiClient.api.createUser(userRequest)
+        call.enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 if (response.isSuccessful) {
-                    Toast.makeText(context, "Contact saved!", Toast.LENGTH_SHORT).show()
-                    navController.navigate(Routes.SecondaryContactForm)
+                    Log.d("API_SUCCESS", "Response: ${response.body()?.string()}")
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Toast.makeText(context, "Failed to save user: $errorBody", Toast.LENGTH_LONG).show()
+                    // Log error response
+                    Log.e("API_ERROR", "Error Code: ${response.code()}")
+                    Log.e("API_ERROR", "Error Body: ${response.errorBody()?.string()}")
                 }
             }
 
-            override fun onFailure(call: Call<Void>, t: Throwable) {
-                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                // Log failure (e.g., No internet, timeout, etc.)
+                Log.e("API_FAILURE", "Request Failed: ${t.message}", t)
             }
         })
-    }
 
+
+
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(16.dp),
-            //.padding(top = 28.dp),
+            .padding(top = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
             painter = painterResource(id = R.drawable.img),
             contentDescription = "App Logo",
             modifier = Modifier
-//                .width(401.dp)
-//                .height(448.dp)
-                .fillMaxWidth()
-                .aspectRatio(1f)
+                .width(401.dp)
+                .height(448.dp)
         )
-
         Spacer(modifier = Modifier.height(12.dp))
-
         Text(
             text = "Welcome to TembeaNami",
             color = Color.Black,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f) // Allow to grow
+            textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(12.dp))
-
-        //Subtitle
-
         Text(
             text = "Your navigation assistant!",
             color = Color.Gray,
             fontSize = 18.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f)
+            textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(52.dp))
-
-        //Sign In Button
-
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(MaterialTheme.colorScheme.background),
             contentAlignment = Alignment.Center
         ) {
             if (isSignIn) {
                 navController.navigate(Routes.ContactFormScreen)
+                submitUser()
             } else {
                 OutlinedButton(onClick = {
                     lifecycleOwner.lifecycleScope.launch {
                         isSignIn = googleAuthClient.signIn()
+                        submitUser()
                     }
                 }) {
                     Text(

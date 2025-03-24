@@ -25,6 +25,7 @@ android {
         }
 
         buildConfigField("String", "API_KEY", "\"${properties.getProperty("API_KEY")}\"")
+        buildConfigField("String", "FIREBASE_KEY", "\"${properties.getProperty("FIREBASE_KEY")}\"")
 
     }
 
@@ -71,20 +72,26 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    //authentification
+    //authentication
     //implementation ("com.firebaseui:firebase-ui-auth:7.2.0")
-    implementation ("com.google.firebase:firebase-auth-ktx")
-    implementation ("com.google.android.gms:play-services-auth:20.7.0")
+    implementation (libs.google.firebase.auth.ktx)
+    implementation (libs.play.services.auth)
 
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
+    implementation(libs.converter.scalars)
 
-    implementation("io.coil-kt:coil-compose:2.2.2")
+
+    implementation(libs.coil.compose)
 
 
     implementation(libs.androidx.navigation.compose)
 
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation(libs.play.services.location)
+
+    implementation("org.osmdroid:osmdroid-android:6.1.10")
+    implementation ("com.google.android.gms:play-services-location:21.0.1")
+
 
 //    implementation(libs.pusher)
 //    implementation(libs.google.maps)
@@ -98,7 +105,7 @@ dependencies {
     implementation(libs.arcgis.maps.kotlin.toolkit.geoview.compose)
     // Additional modules from Toolkit, if needed, such as:
     // implementation(libs.arcgis.maps.kotlin.toolkit.authentication)
-
+    implementation (libs.okhttp3.logging.interceptor)
 
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)

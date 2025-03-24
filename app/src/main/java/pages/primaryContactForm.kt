@@ -15,9 +15,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import APIs.PrimaryContactRequest
+import apis.PrimaryContactRequest
 import com.example.newapp.Routes
-import APIs.primaryContactApiClient
+import apis.primaryContactApiClient
 
 @Composable
 fun ContactFormScreen(navController: NavController) {

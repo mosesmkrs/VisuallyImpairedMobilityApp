@@ -1,6 +1,6 @@
 package com.example.newapp
 
-import APIs.GoogleAuthClient
+import apis.GoogleAuthClient
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -72,3 +72,4 @@ class MainActivity : ComponentActivity() {
         ArcGISEnvironment.apiKey = ApiKey.create(arcgisKey)
     }
 }
+

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 import android.content.Context
+import android.media.AudioManager
 import android.location.LocationManager
 import android.Manifest
 import android.content.pm.PackageManager
@@ -51,7 +52,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import components.Footer
-import APIs.GoogleAuthClient
+import apis.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
 
@@ -63,12 +64,23 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
     val userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     val context = LocalContext.current
     var isGpsEnabled by remember { mutableStateOf(false) }
+    var ringerStatus by remember { mutableStateOf("Checking...") }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             isGpsEnabled = checkGpsStatus(context)
+        }
+    }
+
+    fun checkRingerMode(context: Context): String {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return when (audioManager.ringerMode) {
+            AudioManager.RINGER_MODE_SILENT -> "Audio is OFF"
+            AudioManager.RINGER_MODE_VIBRATE -> "Audio is OFF"
+            AudioManager.RINGER_MODE_NORMAL -> "Audio Connected"
+            else -> "Unknown"
         }
     }
 
@@ -80,7 +92,10 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         } else {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+
+        ringerStatus = checkRingerMode(context)
     }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -154,7 +169,7 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         Spacer(modifier = Modifier.height(16.dp))
 
         // Current Status and Alerts
-        StatusAndAlertsUI(isGpsEnabled)
+        StatusAndAlertsUI(isGpsEnabled, ringerStatus)
 
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)
@@ -213,7 +228,7 @@ fun NavigationOptionsGrid(navController: NavController) {
     }
 }
 @Composable
-fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
+fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -244,7 +259,7 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isGpsEnabled) "Connected to GPS" else "GPS is OFF",
+                        text = if (isGpsEnabled) "GPS Connected" else "GPS is OFF",
                         fontSize = 16.sp
                     )
                 }
@@ -258,7 +273,7 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Audio Guidance Active", fontSize = 16.sp)
+                    Text(ringerStatus, fontSize = 16.sp)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

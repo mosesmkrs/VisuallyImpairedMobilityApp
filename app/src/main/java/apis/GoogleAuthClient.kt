@@ -1,4 +1,4 @@
-package APIs
+package apis
 
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
@@ -107,7 +107,7 @@ class GoogleAuthClient(
                 GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(
-                        "521750377491-g55tj7lfn06dmma98a1iakd9cn3jmlh3.apps.googleusercontent.com"
+                        "663604971731-j4vgnp262u3cu9l2vissqhakfcess5i4.apps.googleusercontent.com"
                     )
                     .setAutoSelectEnabled(false)
                     .build()

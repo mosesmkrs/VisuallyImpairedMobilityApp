@@ -16,9 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.newapp.Routes
-import APIs.secondaryContactApiClient
-import APIs.secondaryContactRequest
-import androidx.compose.ui.tooling.preview.Preview
+import apis.secondaryContactApiClient
+import apis.secondaryContactRequest
 
 @Composable
 fun SecondaryContactForm(navController: NavController) {
