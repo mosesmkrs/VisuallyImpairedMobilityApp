@@ -18,11 +18,27 @@ import androidx.navigation.NavController
 import com.example.newapp.Routes
 import APIs.secondaryContactApiClient
 import APIs.secondaryContactRequest
+import android.Manifest
+import android.content.Intent
+import android.os.Bundle
+import android.provider.ContactsContract
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun SecondaryContactForm(navController: NavController) {
     val context = LocalContext.current
+    val tts = remember { TextToSpeech(context) { } }
 
 
     // Secondary Contact
@@ -30,6 +46,26 @@ fun SecondaryContactForm(navController: NavController) {
     var secondaryPhone by remember { mutableStateOf("") }
     var secondaryNameError by remember { mutableStateOf<String?>(null) }
     var secondaryPhoneError by remember { mutableStateOf<String?>(null) }
+
+    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                Toast.makeText(context, "Permission granted!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Permission denied!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+    }
+
+
+
+
 
     fun validateForm(): Boolean {
         var isValid = true
@@ -78,12 +114,75 @@ fun SecondaryContactForm(navController: NavController) {
             }
         })
     }
+    fun fetchPhoneNumber(name: String) {
+        val contentResolver = context.contentResolver
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val cursor = contentResolver.query(
+            uri,
+            arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+            ),
+            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} = ?",
+            arrayOf(name),
+            null
+        )
+
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val phoneNumber = it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                secondaryPhone = phoneNumber.replace("\\s".toRegex(), "")
+                tts.speak("Phone number for $name found as $secondaryPhone", TextToSpeech.QUEUE_FLUSH, null, null)
+            } else {
+                tts.speak("No phone number found for $name", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        }
+        cursor?.close()
+    }
+    fun startVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the full name of the primary contact")
+        }
+
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    secondaryName = matches[0]
+                    fetchPhoneNumber(secondaryName)
+                }
+            }
+            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        speechRecognizer.startListening(intent)
+    }
+    fun goHome() {
+        tts.speak("Navigating back to homepage", TextToSpeech.QUEUE_FLUSH, null, null)
+        navController.popBackStack()
+    }
+
+
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .statusBarsPadding(),
+            .statusBarsPadding()
+            .pointerInput(Unit){
+                detectTapGestures(
+                    onDoubleTap = {submitContact()},
+                    // onSwipeRight = {goHome()}
+                )
+            },
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
@@ -100,6 +199,11 @@ fun SecondaryContactForm(navController: NavController) {
             onValueChange = { secondaryName = it },
             label = { Text("Full Name") },
             isError = secondaryNameError != null,
+            trailingIcon = {
+                IconButton(onClick = { startVoiceInput() }) {
+                    Icon(Icons.Filled.Done, contentDescription = "Voice Input")
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
         if (secondaryNameError != null) {
@@ -121,7 +225,9 @@ fun SecondaryContactForm(navController: NavController) {
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(
-            onClick = { navController.navigate(Routes.homeScreen) },
+            onClick = {
+                submitContact()
+                navController.navigate(Routes.homeScreen) },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Submit")

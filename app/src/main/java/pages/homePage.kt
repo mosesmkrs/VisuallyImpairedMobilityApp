@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 import android.content.Context
+import android.media.AudioManager
 import android.location.LocationManager
 import android.Manifest
 import android.content.pm.PackageManager
@@ -52,23 +53,71 @@ import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import components.Footer
 import APIs.GoogleAuthClient
+import android.speech.tts.TextToSpeech
+import android.view.GestureDetector
+import android.view.MotionEvent
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import com.example.newapp.R
 import com.example.newapp.Routes
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(googleAuthClient: GoogleAuthClient,
                lifecycleOwner: LifecycleOwner,
-               navController: NavController) {
+               navController: NavController,
+               textToSpeech: TextToSpeech
+) {
 
     val userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     val context = LocalContext.current
     var isGpsEnabled by remember { mutableStateOf(false) }
+    var ringerStatus by remember { mutableStateOf("Checking...") }
+
+
+    LaunchedEffect(Unit) {
+        val message = "You are on the Home Screen. " +
+                "Single tap for SOS Emergency."+
+                "Double tap for Start Navigation."
+
+        textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
+
+    }
+    // Detect gestures (Swipe Right to go back)
+    val gestureDetector = remember {
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (e1 != null && e2 != null && e2.x > e1.x + 100) {
+                    navController.navigate(Routes.homeScreen)
+                    textToSpeech.speak("Going back", TextToSpeech.QUEUE_FLUSH, null, null)
+                    return true
+                }
+                return false
+            }
+        })
+    }
+
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             isGpsEnabled = checkGpsStatus(context)
+        }
+    }
+
+    fun checkRingerMode(context: Context): String {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return when (audioManager.ringerMode) {
+            AudioManager.RINGER_MODE_SILENT -> "Audio is OFF"
+            AudioManager.RINGER_MODE_VIBRATE -> "Audio is OFF"
+            AudioManager.RINGER_MODE_NORMAL -> "Audio Connected"
+            else -> "Unknown"
         }
     }
 
@@ -80,12 +129,16 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         } else {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+
+        ringerStatus = checkRingerMode(context)
     }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            //.verticalScroll(scrollState)
+            .pointerInteropFilter { event -> gestureDetector.onTouchEvent(event) }
+        //.verticalScroll(scrollState)
 
     ) {
         // Top Bar with Home Title and Profile Icon
@@ -131,7 +184,9 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
 
         // SOS Emergency Button
         Button(
-            onClick = { navController.navigate(Routes.ContactFormScreen) },
+            onClick = {
+                textToSpeech.speak("Navigating to SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
+                navController.navigate(Routes.ContactFormScreen) },
             colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
@@ -154,7 +209,7 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         Spacer(modifier = Modifier.height(16.dp))
 
         // Current Status and Alerts
-        StatusAndAlertsUI(isGpsEnabled)
+        StatusAndAlertsUI(isGpsEnabled, ringerStatus)
 
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)
@@ -213,7 +268,7 @@ fun NavigationOptionsGrid(navController: NavController) {
     }
 }
 @Composable
-fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
+fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -244,7 +299,7 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isGpsEnabled) "Connected to GPS" else "GPS is OFF",
+                        text = if (isGpsEnabled) "GPS Connected" else "GPS is OFF",
                         fontSize = 16.sp
                     )
                 }
@@ -258,7 +313,7 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean) {
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Audio Guidance Active", fontSize = 16.sp)
+                    Text(ringerStatus, fontSize = 16.sp)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

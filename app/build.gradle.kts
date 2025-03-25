@@ -64,6 +64,9 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.firebase.database)
+    implementation(libs.play.services.vision.common)
+    implementation(libs.androidx.storage)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -80,6 +83,8 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
     implementation("io.coil-kt:coil-compose:2.2.2")
+    implementation("org.osmdroid:osmdroid-android:6.1.10")
+    implementation ("com.google.android.gms:play-services-location:21.0.1")
 
 
     implementation(libs.androidx.navigation.compose)
@@ -98,12 +103,16 @@ dependencies {
     implementation(libs.arcgis.maps.kotlin.toolkit.geoview.compose)
     // Additional modules from Toolkit, if needed, such as:
     // implementation(libs.arcgis.maps.kotlin.toolkit.authentication)
-
-
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
+    //Accessibility dependencies
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    //implementation("androidx.accessibility:accessibility:1.3.0")
+    //implementation("androidx.speech.tts:tts:1.0.0")
+
 }
