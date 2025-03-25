@@ -6,19 +6,19 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
-import pages.*
-import androidx.compose.foundation.layout.*
-
-
+import pages.AlertsPage
+import pages.ContactFormScreen
+import pages.GoogleSignInScreen
+import pages.HomeScreen
+import pages.NavigationPage
+import pages.OfflineMap
+import pages.ProfilePage
+import pages.SecondaryContactForm
 import java.util.Locale
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
@@ -33,48 +33,28 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         textToSpeech = TextToSpeech(this, this)
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
-        // Initialize Google Auth Client
-        googleAuthClient = GoogleAuthClient(applicationContext)
-
         // Set ArcGIS API Key
         setApiKey()
 
 
         setContent {
             val navController = rememberNavController()
-
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-//                Button(onClick = { speakText("Welcome to the app!") }) {
-//                    Text("Speak")
-//                }
-            }
+            googleAuthClient = GoogleAuthClient(applicationContext)
 
             NavHost(
                 navController = navController,
-                startDestination = Routes.homeScreen
-                //startDestination = Routes.GoogleSignInScreen
+                //startDestination = Routes.homeScreen
+                startDestination = Routes.GoogleSignInScreen
             ) {
                 composable(Routes.homeScreen) {
                     HomeScreen(
                         googleAuthClient,
                         lifecycleOwner = this@MainActivity,
-                        navController ,
+                        navController,
                         textToSpeech
                     )
                 }
 
-                composable(Routes.homeScreen) {
-                    HomeScreen(
-                        googleAuthClient = googleAuthClient,
-                        lifecycleOwner = this@MainActivity,
-                        navController = navController,
-                        textToSpeech
-                    )
-                }
                 composable(Routes.profilePage) {
                     ProfilePage(
                         googleAuthClient = googleAuthClient,

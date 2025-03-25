@@ -114,5 +114,9 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     //implementation("androidx.accessibility:accessibility:1.3.0")
     //implementation("androidx.speech.tts:tts:1.0.0")
+    implementation ("androidx.compose.ui:ui:1.4.3")
+    implementation ("androidx.compose.runtime:runtime:1.4.3")
+
+
 
 }

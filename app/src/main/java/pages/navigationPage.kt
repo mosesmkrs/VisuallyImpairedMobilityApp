@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +48,8 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
 import java.util.Locale
+import androidx.compose.runtime.*
+
 
 @Composable
 fun NavigationPage(navController: NavController) {
@@ -58,14 +61,17 @@ fun NavigationPage(navController: NavController) {
     var locationPermissionGranted by remember { mutableStateOf(false) }
     var destinationText by remember { mutableStateOf("") }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-    val view = LocalView.current
+    var selectedTab by remember { mutableStateOf(0) } //0: Maps , 1:History, 2:Bookmarked
 
 
     tts = remember {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
+                tts?.speak("Welcome to Navigation Page. " +
+                        "Double tap on the top of the screen to enter your destination." +
+                        " Swipe right to move to the next tab. " +
+                        "Swipe left to move back", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
     }
@@ -106,12 +112,31 @@ fun NavigationPage(navController: NavController) {
     // Swipe Gesture for Going Back
     val interactionSource = remember { MutableInteractionSource() }
     val gestureDetector = Modifier.pointerInput(Unit) {
-        detectHorizontalDragGestures { change, dragAmount ->
-            if (dragAmount > 100) { // Swipe Right
-                navController.popBackStack()
+        detectHorizontalDragGestures { _, dragAmount ->
+            if (dragAmount > 100) { // Swipe Right: Move to the next tab
+                selectedTab = when (selectedTab) {
+                    0 -> 1 // Maps → History
+                    1 -> 2 // History → Saved Sites
+                    else -> 2 // Stay on Saved Sites (no further right navigation)
+                }
+            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
+                selectedTab = when (selectedTab) {
+                    2 -> 1 // Saved Sites → History
+                    1 -> 0 // History → Maps
+                    else -> 0 // Stay on Maps (no further left navigation)
+                }
             }
+
+            // Announce the switched tab
+            val tabName = when (selectedTab) {
+                0 -> "Maps"
+                1 -> "History"
+                else -> "Saved Sites"
+            }
+            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
         }
     }
+
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -165,7 +190,20 @@ fun NavigationPage(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
             .navigationBarsPadding()
-            .then(gestureDetector),
+            .then(gestureDetector)
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(
+                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                        )
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                    }
+                    voiceInputLauncher.launch(intent)
+                })
+            }
+            .navigationBarsPadding(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -233,7 +271,8 @@ fun NavigationPage(navController: NavController) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .zIndex(1f),
+                .zIndex(1f)
+,
             shape = RoundedCornerShape(20.dp),
             trailingIcon = {
                 Row {

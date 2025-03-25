@@ -29,9 +29,18 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import components.Footer
 import APIs.GoogleAuthClient
+import android.speech.tts.TextToSpeech
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.example.newapp.R
 import com.example.newapp.Routes
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 
 @Composable
@@ -44,12 +53,48 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
     var userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
     var userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+
+
+    // Text-to-Speech setup
+    tts = remember {
+        TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.US
+                tts?.speak("Profile Page. Swipe right to sign out. Swipe left to edit emergency contacts.Double tap to repeat the message"
+                       , TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        }
+    }
+
+
+
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
             .statusBarsPadding()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        // Repeat TTS message on double-tap
+                        tts?.speak(
+                            "Profile Page. Swipe right to sign out. Swipe left to edit your emergency contact. Double-tap to repeat this message.",
+                            TextToSpeech.QUEUE_FLUSH, null, null
+                        )
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { _, dragAmount ->
+                    when {
+                        dragAmount > 100 -> showLogoutDialog = true // Swipe Right to Logout
+                        dragAmount < -100 -> navController.navigate("ContactFormScreen") // Swipe Left to Edit Contact
+                    }
+                }
+            }
     ) {
         // Profile Header
         Box(
@@ -57,7 +102,9 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(vertical = 12.dp)
+                .semantics { contentDescription = "Profile Page" }
         ) {
+
             // Centered Profile Text
             Text(
                 text = "Profile",
@@ -85,6 +132,9 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
                 .padding(horizontal = 24.dp)
+                .semantics {
+                    contentDescription = "User Profile. Name: $userName, Email: $userEmail"
+                }
         ) {
             if (userPhoto != null) {
                 AsyncImage(
@@ -106,7 +156,15 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 )
             }
             Spacer(modifier = Modifier.width(6.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics{
+                        contentDescription =  "UserName: $userName, Email: $userEmail"
+                    }
+
+            ) {
                 Text(text = userName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(text = userEmail, fontSize = 14.sp, color = Color.Gray)
             }
@@ -119,14 +177,20 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                         modifier = Modifier
                             .size(40.dp)
                             .clickable {
-                                    showLogoutDialog = true
-                            },
+                                showLogoutDialog = true
+                            }
+                            .semantics { contentDescription = "Logout Button, Double-tap to sign out" },
+
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.logout),
-                            contentDescription = "Logout",
-                            modifier = Modifier.size(26.dp)
+                            contentDescription = "Logout. Double tap to sign out.",
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clickable {
+                                    showLogoutDialog = true
+                                }
                         )
                     }
                 }
