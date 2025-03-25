@@ -9,4 +9,5 @@ object Routes {
     var GoogleSignInScreen = "GoogleSignInScreen"
     var ContactFormScreen = "ContactFormScreen"
     var SecondaryContactForm = "SecondaryContactForm"
+    var MatatuPage = "MatatuPage"
 }

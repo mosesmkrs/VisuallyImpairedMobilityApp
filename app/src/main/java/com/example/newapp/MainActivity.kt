@@ -13,6 +13,7 @@ import pages.AlertsPage
 import pages.ContactFormScreen
 import pages.GoogleSignInScreen
 import pages.HomeScreen
+import pages.MatatuPage
 import pages.NavigationPage
 import pages.OfflineMap
 import pages.ProfilePage
@@ -62,6 +63,9 @@ class MainActivity : ComponentActivity() {
                 }
                 composable(Routes.SecondaryContactForm){
                     SecondaryContactForm(navController)
+                }
+                composable(Routes.MatatuPage){
+                    MatatuPage(navController)
                 }
             }
         }
