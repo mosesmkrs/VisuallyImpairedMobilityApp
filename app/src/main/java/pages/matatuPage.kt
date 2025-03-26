@@ -46,6 +46,7 @@ fun MatatuPage(navController: NavController) {
     var routePoints by remember { mutableStateOf<List<GeoPoint>>(emptyList()) }
     var locationPermissionGranted by remember { mutableStateOf(false) }
     var destinationText by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -67,7 +68,7 @@ fun MatatuPage(navController: NavController) {
         }
     }
 
-    fun fetchRoute(start: GeoPoint, end: GeoPoint) {
+    fun fetchRoutes(start: GeoPoint, end: GeoPoint, onRouteReceived: (List<GeoPoint>, List<String>) -> Unit) {
         val url = "https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson"
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
@@ -75,20 +76,43 @@ fun MatatuPage(navController: NavController) {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
+                errorMessage = "Error fetching route. Please try again."
             }
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.let { responseBody ->
                     val json = JSONObject(responseBody.string())
-                    val coordinates = json.getJSONArray("routes").getJSONObject(0)
-                        .getJSONObject("geometry").getJSONArray("coordinates")
+                    if (!json.has("routes") || json.getJSONArray("routes").length() == 0) {
+                        errorMessage = "No route found. Please check the destination."
+                        return
+                    }
 
-                    val points = mutableListOf<GeoPoint>()
+                    val route = json.getJSONArray("routes").getJSONObject(0)
+                    val coordinates = route.getJSONObject("geometry").getJSONArray("coordinates")
+                    val steps = route.getJSONArray("legs").getJSONObject(0).getJSONArray("steps")
+
+                    if (coordinates.length() < 2) {
+                        errorMessage = "Route too short or invalid."
+                        return
+                    }
+
+                    val routePoints = mutableListOf<GeoPoint>()
                     for (i in 0 until coordinates.length()) {
                         val point = coordinates.getJSONArray(i)
-                        points.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
+                        routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
                     }
-                    routePoints = points
+
+                    val instructions = mutableListOf<String>()
+                    for (i in 0 until steps.length()) {
+                        val step = steps.getJSONObject(i)
+                        val instruction = step.getString("maneuver") + ": " + step.getString("name")
+                        instructions.add(instruction)
+                    }
+
+                    errorMessage = null // Clear any previous errors
+                    onRouteReceived(routePoints, instructions)
+                } ?: run {
+                    errorMessage = "Invalid response from server."
                 }
             }
         })
@@ -159,6 +183,16 @@ fun MatatuPage(navController: NavController) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Show error message if any
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(3.dp)
+                    .zIndex(1f)
+            )
+        }
         OutlinedTextField(
             value = destinationText,
             onValueChange = { destinationText = it },
@@ -171,25 +205,23 @@ fun MatatuPage(navController: NavController) {
             trailingIcon = {
                 Button(
                     onClick = {
-                        fetchCoordinatess(destinationText, context) { location ->
+                        fetchCoordinates(destinationText, context) { location ->
                             if (location != null) {
                                 destinationLocation = location
-                                if (userLocation != null) {
-                                    fetchRoute(userLocation!!, location)
+                                fetchRoutes(userLocation!!, location) { newRoutePoints, instructions ->
+                                    routePoints = newRoutePoints
                                 }
+                            } else {
+                                errorMessage = "Invalid destination. Please enter a valid location."
                             }
                         }
                     },
                     modifier = Modifier.padding(4.dp)
-                        .zIndex(1f)
                 ) {
                     Text("Go")
                 }
             }
         )
-
-
-
         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             AndroidView(factory = { ctx ->
                 MapView(ctx).apply {
