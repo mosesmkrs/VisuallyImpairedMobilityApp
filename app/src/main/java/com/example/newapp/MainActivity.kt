@@ -1,6 +1,6 @@
 package com.example.newapp
 
-import APIs.GoogleAuthClient
+import apis.GoogleAuthClient
 import android.os.Bundle
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
@@ -15,6 +15,7 @@ import pages.AlertsPage
 import pages.ContactFormScreen
 import pages.GoogleSignInScreen
 import pages.HomeScreen
+import pages.MatatuPage
 import pages.NavigationPage
 import pages.OfflineMap
 import pages.ProfilePage
@@ -85,6 +86,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 composable(Routes.SecondaryContactForm) {
                     SecondaryContactForm(navController)
                 }
+                composable(Routes.MatatuPage){
+                    MatatuPage(navController)
+                }
             }
         }
     }
@@ -103,11 +107,5 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val arcgisKey = BuildConfig.API_KEY
         ArcGISEnvironment.apiKey = ApiKey.create(arcgisKey)
     }
-
-    override fun onDestroy() {
-        textToSpeech.stop()
-        textToSpeech.shutdown()
-        speechRecognizer.destroy()
-        super.onDestroy()
-    }
 }
+

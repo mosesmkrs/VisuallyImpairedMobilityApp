@@ -15,29 +15,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import APIs.PrimaryContactRequest
+import apis.PrimaryContactRequest
 import com.example.newapp.Routes
-import APIs.primaryContactApiClient
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.Intent
-import android.os.Bundle
-import android.provider.ContactsContract
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.core.app.ComponentActivity
+import apis.primaryContactApiClient
 
-
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactFormScreen(navController: NavController) {
     val context = LocalContext.current

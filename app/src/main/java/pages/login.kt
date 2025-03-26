@@ -1,6 +1,10 @@
 package pages
 
 
+import apis.UserApiClient
+import apis.UserRequest
+import android.util.Log
+import android.widget.Toast
 import APIs.GoogleAuthClient
 import APIs.UserApiClient
 import APIs.UserRequest
@@ -12,9 +16,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
+import apis.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
 import com.google.firebase.auth.FirebaseAuth
@@ -51,6 +54,11 @@ import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.launch
 import okhttp3.ResponseBody
 import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import com.google.gson.Gson
+import java.time.LocalDateTime
+
 import retrofit2.Callback
 import retrofit2.Response
 import java.time.LocalDateTime
@@ -93,6 +101,12 @@ fun GoogleSignInScreen(
 
 
     fun submitUser() {
+
+        val userRequest = UserRequest(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
+
+        val call = UserApiClient.api.createUser(userRequest)
+        call.enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
         val userRequest = UserRequest(1,"ugfdhjx","cgxkhGL","gmail.com", LocalDateTime.now())
 
         val call = UserApiClient.api.createUser(userRequest)
@@ -102,14 +116,11 @@ fun GoogleSignInScreen(
             override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 isLoading = false
                 if (response.isSuccessful) {
-                    Log.d("API_SUCCESS","Resonse: ${response.body()?.string()}")
-                    speakText(tts, "Account created successfully!")
-                    navController.navigate(Routes.ContactFormScreen)
+                    Log.d("API_SUCCESS", "Response: ${response.body()?.string()}")
                 } else {
                     // Log error response
                     Log.e("API_ERROR", "Error Code: ${response.code()}")
                     Log.e("API_ERROR", "Error Body: ${response.errorBody()?.string()}")
-                    speakText(tts, "Failed to register. Please try again.")
                 }
             }
 
@@ -119,12 +130,15 @@ fun GoogleSignInScreen(
                 speakText(tts, "An error occurred. Please check your internet connection.")
             }
         })
-    }
 
+
+
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
+            .padding(top = 28.dp),
             .padding(top = 28.dp)
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -156,10 +170,10 @@ fun GoogleSignInScreen(
                 .height(448.dp)
                 .fillMaxWidth()
                 .aspectRatio(1f)
+                .width(401.dp)
+                .height(448.dp)
         )
-
         Spacer(modifier = Modifier.height(12.dp))
-
         Text(
             text = "Welcome to TembeaNami",
             color = Color.Black,
@@ -167,20 +181,16 @@ fun GoogleSignInScreen(
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
+            textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(12.dp))
-
         Text(
             text = "Your navigation assistant!",
             color = Color.Gray,
             fontSize = 18.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+            textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(52.dp))
-
         Box(
             contentAlignment = Alignment.Center
         ) {

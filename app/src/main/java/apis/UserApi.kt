@@ -1,4 +1,4 @@
-package APIs
+package apis
 
 
 import okhttp3.ResponseBody
@@ -14,7 +14,7 @@ data class UserRequest(
     val email: String,
     val firebaseUUID: String,
     val createdAt: LocalDateTime,
-)
+    )
 
 interface UserApi {
     @POST("/users")

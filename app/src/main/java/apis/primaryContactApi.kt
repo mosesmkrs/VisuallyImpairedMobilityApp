@@ -1,17 +1,17 @@
-package APIs
+package apis
 
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.Call
 
-data class secondaryContactRequest(
+data class PrimaryContactRequest(
     val contact_name: String,
     val contact_phone: String,
     val relationship: String
 )
 
-interface secondaryContactApi {
+interface primaryContactApi {
     @POST("emergency")
-    fun createSecondaryEmergencyContact(@Body contact: secondaryContactRequest): Call<Void>
+    fun createPrimaryContact(@Body contact: PrimaryContactRequest): Call<Void>
 }
 
