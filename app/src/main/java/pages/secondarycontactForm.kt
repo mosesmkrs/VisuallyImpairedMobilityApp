@@ -18,8 +18,6 @@ import androidx.navigation.NavController
 import com.example.newapp.Routes
 import apis.secondaryContactApiClient
 import apis.secondaryContactRequest
-import APIs.secondaryContactApiClient
-import APIs.secondaryContactRequest
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle

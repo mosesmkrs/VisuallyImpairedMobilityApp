@@ -2,6 +2,5 @@
 <resources>
     <string name="app_name">NewApp</string>
     <string name="google_maps_key">GOOGLE_MAPS_KEY</string>
-    <string name="accessibility_service_description">accessibility_service_config</string>
     <string name="accessibility_service_description">Provides spoken feedback for better accessibility.</string>
 </resources>

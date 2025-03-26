@@ -39,7 +39,6 @@ import androidx.navigation.NavController
 
 import android.content.Context
 import android.media.AudioManager
-import android.media.AudioManager
 import android.location.LocationManager
 import android.Manifest
 import android.content.pm.PackageManager
@@ -54,7 +53,6 @@ import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import components.Footer
 import apis.GoogleAuthClient
-import APIs.GoogleAuthClient
 import android.speech.tts.TextToSpeech
 import android.view.GestureDetector
 import android.view.MotionEvent

@@ -1,13 +1,6 @@
 package pages
 
 
-import apis.UserApiClient
-import apis.UserRequest
-import android.util.Log
-import android.widget.Toast
-import APIs.GoogleAuthClient
-import APIs.UserApiClient
-import APIs.UserRequest
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.compose.foundation.Image
@@ -16,12 +9,13 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,21 +38,13 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import apis.GoogleAuthClient
+import apis.UserApiClient
+import apis.UserRequest
 import com.example.newapp.R
 import com.example.newapp.Routes
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.launch
 import okhttp3.ResponseBody
 import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
-import com.google.gson.Gson
-import java.time.LocalDateTime
-
 import retrofit2.Callback
 import retrofit2.Response
 import java.time.LocalDateTime
@@ -69,7 +55,7 @@ fun GoogleSignInScreen(
     googleAuthClient: GoogleAuthClient,
     lifecycleOwner: LifecycleOwner,
     navController: NavController,
-    tts: TextToSpeech // Receive TTS instance
+    tts: TextToSpeech
 ) {
     val context = LocalContext.current
     var isSignIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
@@ -100,45 +86,35 @@ fun GoogleSignInScreen(
 
 
 
-    fun submitUser() {
-
-        val userRequest = UserRequest(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
-
-        val call = UserApiClient.api.createUser(userRequest)
-        call.enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-        val userRequest = UserRequest(1,"ugfdhjx","cgxkhGL","gmail.com", LocalDateTime.now())
-
-        val call = UserApiClient.api.createUser(userRequest)
-        isLoading = true
-
-        call.enqueue(object: Callback<ResponseBody>{
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                isLoading = false
-                if (response.isSuccessful) {
-                    Log.d("API_SUCCESS", "Response: ${response.body()?.string()}")
-                } else {
-                    // Log error response
-                    Log.e("API_ERROR", "Error Code: ${response.code()}")
-                    Log.e("API_ERROR", "Error Body: ${response.errorBody()?.string()}")
-                }
-            }
-
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                isLoading = false
-                Log.e("API_FAILURE","Request Failed: ${t.message}",t)
-                speakText(tts, "An error occurred. Please check your internet connection.")
-            }
-        })
-
-
-
-    }
+//    fun submitUser() {
+//        val userRequest = UserRequest(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
+//        val call = UserApiClient.api.createUser(userRequest)
+//                call.enqueue(object : Callback<ResponseBody> {
+//                    override fun onResponse(
+//                        call: Call<ResponseBody>,
+//                        response: Response<ResponseBody>
+//                    ) {
+//                        isLoading = false
+//                        if (response.isSuccessful) {
+//                            Log.d("API_SUCCESS", "Response: ${response.body()?.string()}")
+//                        } else {
+//                            // Log error response
+//                            Log.e("API_ERROR", "Error Code: ${response.code()}")
+//                            Log.e("API_ERROR", "Error Body: ${response.errorBody()?.string()}")
+//                        }
+//                    }
+//
+//                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+//                        isLoading = false
+//                        Log.e("API_FAILURE", "Request Failed: ${t.message}", t)
+//                        speakText(tts, "An error occurred. Please check your internet connection.")
+//                    }
+//                })
+//    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(top = 28.dp),
             .padding(top = 28.dp)
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -149,9 +125,10 @@ fun GoogleSignInScreen(
 
                             val success = googleAuthClient.signIn()
                             if (success) {
-                                speakText(tts, "Sign-in successful! Welcome, $userName")
+                                val newUserName = googleAuthClient.getUserName() ?: "Unknown"
+                                speakText(tts, "Sign-in successful! Welcome, $newUserName")
                                 isSignIn = true
-                                submitUser()
+                                navController.navigate(Routes.ContactFormScreen)
                             } else {
                                 speakText(tts, "Sign-in failed. Please try again.")
                                 isLoading = false
@@ -170,8 +147,6 @@ fun GoogleSignInScreen(
                 .height(448.dp)
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .width(401.dp)
-                .height(448.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
@@ -179,10 +154,10 @@ fun GoogleSignInScreen(
             color = Color.Black,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Center, // Keep only one instance
             modifier = Modifier.fillMaxWidth()
-            textAlign = TextAlign.Center
         )
+
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Your navigation assistant!",
@@ -198,12 +173,12 @@ fun GoogleSignInScreen(
                 CircularProgressIndicator()
             } else if (isSignIn) {
                 navController.navigate(Routes.ContactFormScreen)
-                submitUser()
             } else {
                 OutlinedButton(onClick ={
                     lifecycleOwner.lifecycleScope.launch {
+                        isLoading = true
                         isSignIn = googleAuthClient.signIn()
-                        submitUser()
+
                     }
                 }) {
                     Text(
