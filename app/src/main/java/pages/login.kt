@@ -1,11 +1,18 @@
 package pages
 
+
 import apis.UserApiClient
 import apis.UserRequest
 import android.util.Log
 import android.widget.Toast
+import APIs.GoogleAuthClient
+import APIs.UserApiClient
+import APIs.UserRequest
+import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,10 +20,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +46,11 @@ import androidx.navigation.NavController
 import apis.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.launch
 import okhttp3.ResponseBody
 import retrofit2.Call
@@ -44,18 +59,45 @@ import retrofit2.Response
 import com.google.gson.Gson
 import java.time.LocalDateTime
 
+import retrofit2.Callback
+import retrofit2.Response
+import java.time.LocalDateTime
+import java.util.Locale
 
 @Composable
 fun GoogleSignInScreen(
     googleAuthClient: GoogleAuthClient,
     lifecycleOwner: LifecycleOwner,
-    navController: NavController
+    navController: NavController,
+    tts: TextToSpeech // Receive TTS instance
 ) {
     val context = LocalContext.current
     var isSignIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
     val userId by remember { mutableStateOf(googleAuthClient.getUserId()) }
     val userName by remember { mutableStateOf(googleAuthClient.getUserName() ?: "Unknown") }
     val userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
+    var isLoading by remember { mutableStateOf(false) }
+    var ttsReady by remember { mutableStateOf(false) }
+
+
+    // Initialize TTS callback
+    val tts = remember {
+        TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts.language = Locale.US
+                ttsReady = true
+            }
+        }
+    }
+
+    // Speak only when TTS is ready
+    LaunchedEffect(ttsReady) {
+        if (ttsReady) {
+            speakText(tts, "Welcome to the app. Your Navigation Assistant! Double tap to sign in")
+        }
+    }
+
+
 
 
     fun submitUser() {
@@ -65,6 +107,14 @@ fun GoogleSignInScreen(
         val call = UserApiClient.api.createUser(userRequest)
         call.enqueue(object : Callback<ResponseBody> {
             override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+        val userRequest = UserRequest(1,"ugfdhjx","cgxkhGL","gmail.com", LocalDateTime.now())
+
+        val call = UserApiClient.api.createUser(userRequest)
+        isLoading = true
+
+        call.enqueue(object: Callback<ResponseBody>{
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                isLoading = false
                 if (response.isSuccessful) {
                     Log.d("API_SUCCESS", "Response: ${response.body()?.string()}")
                 } else {
@@ -75,8 +125,9 @@ fun GoogleSignInScreen(
             }
 
             override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                // Log failure (e.g., No internet, timeout, etc.)
-                Log.e("API_FAILURE", "Request Failed: ${t.message}", t)
+                isLoading = false
+                Log.e("API_FAILURE","Request Failed: ${t.message}",t)
+                speakText(tts, "An error occurred. Please check your internet connection.")
             }
         })
 
@@ -88,12 +139,37 @@ fun GoogleSignInScreen(
             .fillMaxSize()
             .background(Color.White)
             .padding(top = 28.dp),
+            .padding(top = 28.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = { // Detect double tap anywhere on the screen
+                        lifecycleOwner.lifecycleScope.launch {
+                            isLoading = true
+                            speakText(tts, "Signing in with Google. Please wait.")
+
+                            val success = googleAuthClient.signIn()
+                            if (success) {
+                                speakText(tts, "Sign-in successful! Welcome, $userName")
+                                isSignIn = true
+                                submitUser()
+                            } else {
+                                speakText(tts, "Sign-in failed. Please try again.")
+                                isLoading = false
+                            }
+                        }
+                    }
+                )
+            },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
             painter = painterResource(id = R.drawable.img),
             contentDescription = "App Logo",
             modifier = Modifier
+                .width(401.dp)
+                .height(448.dp)
+                .fillMaxWidth()
+                .aspectRatio(1f)
                 .width(401.dp)
                 .height(448.dp)
         )
@@ -103,6 +179,8 @@ fun GoogleSignInScreen(
             color = Color.Black,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -116,18 +194,20 @@ fun GoogleSignInScreen(
         Box(
             contentAlignment = Alignment.Center
         ) {
-            if (isSignIn) {
+            if (isLoading) {
+                CircularProgressIndicator()
+            } else if (isSignIn) {
                 navController.navigate(Routes.ContactFormScreen)
                 submitUser()
             } else {
-                OutlinedButton(onClick = {
+                OutlinedButton(onClick ={
                     lifecycleOwner.lifecycleScope.launch {
                         isSignIn = googleAuthClient.signIn()
                         submitUser()
                     }
                 }) {
                     Text(
-                        text = "Sign In With Google",
+                        text = "Sign in with Google",
                         fontSize = 16.sp,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
                     )
@@ -135,4 +215,20 @@ fun GoogleSignInScreen(
             }
         }
     }
+
+
 }
+
+// Utility function to handle speaking
+fun speakText(tts: TextToSpeech, text: String) {
+    if (tts.isSpeaking) {
+        tts.stop() // Stop any ongoing speech
+    }
+    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+}
+
+
+
+
+
+
