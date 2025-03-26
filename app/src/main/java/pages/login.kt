@@ -73,19 +73,19 @@ fun GoogleSignInScreen(
 
 
     // Initialize TTS callback
-//    val tts = remember {
-//        TextToSpeech(context) { status ->
-//            if (status == TextToSpeech.SUCCESS) {
-//                tts.language = Locale.US
-//                ttsReady = true
-//            }
-//        }
-//    }
+    val tts = remember {
+        TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts.language = Locale.US
+                ttsReady = true
+            }
+        }
+    }
 
     // Speak only when TTS is ready
     LaunchedEffect(ttsReady) {
         if (ttsReady) {
-            speakText(tts, "Welcome to the app. Please sign in to continue. Double tap to activate.")
+            speakText(tts, "Welcome to the app. Your Navigation Assistant! Double tap to sign in")
         }
     }
 
