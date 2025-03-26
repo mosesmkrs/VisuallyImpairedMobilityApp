@@ -22,12 +22,32 @@ import apis.primaryContactApiClient
 @Composable
 fun ContactFormScreen(navController: NavController) {
     val context = LocalContext.current
+   // val activity = LocalContext.current as ComponentActivity
+    val tts = remember { TextToSpeech(context) { } }
 
     // Primary Contact
     var primaryName by remember { mutableStateOf("") }
     var primaryPhone by remember { mutableStateOf("") }
     var primaryNameError by remember { mutableStateOf<String?>(null) }
     var primaryPhoneError by remember { mutableStateOf<String?>(null) }
+
+
+    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                Toast.makeText(context, "Permission granted!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Permission denied!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    )
+
+   LaunchedEffect(Unit) {
+       permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+   }
+
 
     fun validateForm(): Boolean {
         var isValid = true
@@ -75,12 +95,76 @@ fun ContactFormScreen(navController: NavController) {
             }
         })
     }
+    fun fetchPhoneNumber(name: String) {
+        val contentResolver = context.contentResolver
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val cursor = contentResolver.query(
+            uri,
+            arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+            ),
+            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} = ?",
+            arrayOf(name),
+            null
+        )
+
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val phoneNumber = it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                primaryPhone = phoneNumber.replace("\\s".toRegex(), "")
+                tts.speak("Phone number for $name found as $primaryPhone", TextToSpeech.QUEUE_FLUSH, null, null)
+            } else {
+                tts.speak("No phone number found for $name", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        }
+        cursor?.close()
+    }
+
+    fun startVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the full name of the primary contact")
+        }
+
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    primaryName = matches[0]
+                    fetchPhoneNumber(primaryName)
+                }
+            }
+            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        speechRecognizer.startListening(intent)
+    }
+
+    fun goHome() {
+        tts.speak("Navigating back to homepage", TextToSpeech.QUEUE_FLUSH, null, null)
+        navController.popBackStack()
+    }
+
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .statusBarsPadding(),
+            .statusBarsPadding()
+            .pointerInput(Unit){
+                detectTapGestures(
+                    onDoubleTap = {submitContact()},
+                   // onSwipeRight = {goHome()}
+                )
+            },
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
@@ -96,6 +180,11 @@ fun ContactFormScreen(navController: NavController) {
             onValueChange = { primaryName = it },
             label = { Text("Full Name") },
             isError = primaryNameError != null,
+            trailingIcon = {
+                IconButton(onClick = { startVoiceInput() }) {
+                    Icon(Icons.Filled.Done, contentDescription = "Voice Input")
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
         if (primaryNameError != null) {
@@ -117,10 +206,11 @@ fun ContactFormScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { navController.navigate(Routes.SecondaryContactForm) },
+            onClick = { submitContact()
+                navController.navigate(Routes.SecondaryContactForm) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Next")
+            Text("Save contact")
         }
     }
 }
