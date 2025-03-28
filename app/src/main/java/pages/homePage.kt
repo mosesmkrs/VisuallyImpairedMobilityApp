@@ -56,7 +56,9 @@ import apis.GoogleAuthClient
 import android.speech.tts.TextToSpeech
 import android.view.GestureDetector
 import android.view.MotionEvent
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import com.example.newapp.R
 import com.example.newapp.Routes
@@ -83,6 +85,8 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
 
     }
+
+
     // Detect gestures (Swipe Right to go back)
     val gestureDetector = remember {
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -137,10 +141,20 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .pointerInteropFilter { event -> gestureDetector.onTouchEvent(event) }
-        //.verticalScroll(scrollState)
-
-    ) {
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
+                        navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
+                    },
+                    onDoubleTap = {
+                        textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
+                        navController.navigate(Routes.ContactFormScreen)
+                    }
+                )
+            }
+    )
+ {
         // Top Bar with Home Title and Profile Icon
         Row(
             modifier = Modifier

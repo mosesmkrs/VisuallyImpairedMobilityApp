@@ -3,13 +3,18 @@ package pages
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -17,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -36,6 +42,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
+import java.util.Locale
 
 @Composable
 fun MatatuPage(navController: NavController) {
@@ -47,6 +54,68 @@ fun MatatuPage(navController: NavController) {
     var locationPermissionGranted by remember { mutableStateOf(false) }
     var destinationText by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var selectedTab by remember { mutableStateOf(0) }
+    
+    tts = remember{
+        TextToSpeech(context){
+            status ->
+            if(status == TextToSpeech.SUCCESS){
+                tts?.language = Locale.US
+                tts?.speak("You are on the Matatu Page. " +
+                        "Double tap on the top of the screen to enter your destination." +
+                        "Swipe right to move to the next tab. " +
+                        "Swipe left to move back", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        }
+    }
+    // Cleanup TTS when the screen is removed
+    DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
+        }
+    }
+    // Voice Input Launcher
+    val voiceInputLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data: Intent? = result.data
+        val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
+        if (!spokenText.isNullOrEmpty()) {
+            destinationText = spokenText
+            tts!!.speak("You entered $spokenText", TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+    val gestureDetector = Modifier
+        .pointerInput(Unit) {
+        detectHorizontalDragGestures { _, dragAmount ->
+            if (dragAmount > 100) { // Swipe Right: Move to the next tab
+                selectedTab = when (selectedTab) {
+                    0 -> 1 // Maps → History
+                    1 -> 2 // History → Saved Sites
+                    else -> 2 // Stay on Saved Sites (no further right navigation)
+                }
+            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
+                selectedTab = when (selectedTab) {
+                    2 -> 1 // Saved Sites → History
+                    1 -> 0 // History → Maps
+                    else -> 0 // Stay on Maps (no further left navigation)
+                }
+            }
+
+            // Announce the switched tab
+            val tabName = when (selectedTab) {
+                0 -> "Maps"
+                1 -> "History"
+                else -> "Saved Sites"
+            }
+            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+
+
+
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -122,6 +191,19 @@ fun MatatuPage(navController: NavController) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
+            .pointerInput(Unit){
+                detectTapGestures(
+                    onDoubleTap = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                            )
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                        }
+                        voiceInputLauncher.launch(intent)
+                    })
+            }
             .navigationBarsPadding(),
     ) {
         Row(
@@ -193,6 +275,7 @@ fun MatatuPage(navController: NavController) {
                     .zIndex(1f)
             )
         }
+        // OutlinedTextField with Voice Input Trigger on Double Tap
         OutlinedTextField(
             value = destinationText,
             onValueChange = { destinationText = it },
@@ -200,7 +283,21 @@ fun MatatuPage(navController: NavController) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .zIndex(1f),
+                .zIndex(1f)
+                .pointerInput(Unit){
+                    detectTapGestures(
+                        onDoubleTap = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                )
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                            }
+                            voiceInputLauncher.launch(intent)
+                        }
+                    )
+                },
             shape = RoundedCornerShape(20.dp),
             trailingIcon = {
                 Button(
@@ -222,6 +319,7 @@ fun MatatuPage(navController: NavController) {
                 }
             }
         )
+        //mapview
         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             AndroidView(factory = { ctx ->
                 MapView(ctx).apply {

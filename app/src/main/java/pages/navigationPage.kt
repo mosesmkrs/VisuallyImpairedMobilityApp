@@ -72,11 +72,19 @@ fun NavigationPage(navController: NavController) {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
-                tts?.speak("Welcome to Navigation Page. " +
+                tts?.speak("You are on the Navigation Page." +
                         "Double tap on the top of the screen to enter your destination." +
                         " Swipe right to move to the next tab. " +
                         "Swipe left to move back", TextToSpeech.QUEUE_FLUSH, null, null)
             }
+
+        }
+    }
+    // Cleanup TTS when the screen is removed
+    DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
         }
     }
 

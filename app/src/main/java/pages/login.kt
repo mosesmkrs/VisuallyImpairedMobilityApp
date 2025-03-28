@@ -86,6 +86,7 @@ fun GoogleSignInScreen(
 
 
 
+
 //    fun submitUser() {
 //        val userRequest = UserRequest(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
 //        val call = UserApiClient.api.createUser(userRequest)
@@ -136,6 +137,7 @@ fun GoogleSignInScreen(
                         }
                     }
                 )
+
             },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -201,9 +203,3 @@ fun speakText(tts: TextToSpeech, text: String) {
     }
     tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
 }
-
-
-
-
-
-
