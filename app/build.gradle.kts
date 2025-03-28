@@ -91,10 +91,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation("org.osmdroid:osmdroid-android:6.1.10")
     implementation ("com.google.android.gms:play-services-location:21.0.1")
-
-
     implementation(libs.androidx.navigation.compose)
-
     implementation(libs.play.services.location)
 
     implementation("org.osmdroid:osmdroid-android:6.1.10")
@@ -128,6 +125,7 @@ dependencies {
     //implementation("androidx.speech.tts:tts:1.0.0")
     implementation ("androidx.compose.ui:ui:1.4.3")
     implementation ("androidx.compose.runtime:runtime:1.4.3")
+    implementation ("androidx.compose.material:material-icons-extended:1.6.1")
 
 
 
