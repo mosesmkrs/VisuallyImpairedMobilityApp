@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -27,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -59,7 +60,13 @@ fun NavigationPage(navController: NavController) {
     var destinationText by remember { mutableStateOf("") }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var selectedTab by remember { mutableStateOf(0) } //0: Maps , 1:History, 2:Bookmarked
-
+    var showTripDetails by remember { mutableStateOf(false) }
+    var tripDistance by remember { mutableStateOf("") }
+    var tripDuration by remember { mutableStateOf("") }
+    var tripInstructions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var currentInstruction by remember { mutableStateOf("Loading directions...") }
+    var isLoading by remember { mutableStateOf(false) }
 
     tts = remember {
         TextToSpeech(context) { status ->
@@ -106,8 +113,21 @@ fun NavigationPage(navController: NavController) {
         }
     }
 
-    // Swipe Gesture for Going Back
-    val interactionSource = remember { MutableInteractionSource() }
+    // Start tracking user location in real time
+    LaunchedEffect(Unit) {
+        fetchUserLocation(context, fusedLocationClient) { location ->
+            userLocation = location
+
+            if (routePoints.isNotEmpty() && tripInstructions.isNotEmpty()) {
+                val newInstruction = getClosestInstruction(location, routePoints, tripInstructions)
+                if (newInstruction != currentInstruction) {
+                    currentInstruction = newInstruction
+                    tts?.speak(currentInstruction, TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+            }
+        }
+    }
+
     val gestureDetector = Modifier.pointerInput(Unit) {
         detectHorizontalDragGestures { _, dragAmount ->
             if (dragAmount > 100) { // Swipe Right: Move to the next tab
@@ -133,14 +153,17 @@ fun NavigationPage(navController: NavController) {
             tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
         }
     }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
 
 
 
 
 
-    fun fetchRoute(start: GeoPoint, end: GeoPoint, onRouteReceived: (List<GeoPoint>, List<String>) -> Unit) {
-        val url = "https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson"
+    fun fetchRoute(
+        start: GeoPoint,
+        end: GeoPoint,
+        onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
+    ) {
+        val url = "https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson&steps=true"
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
 
@@ -148,46 +171,66 @@ fun NavigationPage(navController: NavController) {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
                 errorMessage = "Error fetching route. Please try again."
+                tts!!.speak("Error fetching route. Please try again.", TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.let { responseBody ->
                     val json = JSONObject(responseBody.string())
                     if (!json.has("routes") || json.getJSONArray("routes").length() == 0) {
-                        errorMessage = "No route found. Please check the destination."
+                        errorMessage = "No route found."
+                        tts!!.speak("No route found for that destination. Please reenter your destination", TextToSpeech.QUEUE_FLUSH, null, null)
+                        Log.d("LOC_ERROR", errorMessage!!)
                         return
                     }
 
                     val route = json.getJSONArray("routes").getJSONObject(0)
+                    val distanceMeters = route.getDouble("distance")
+                    val durationSeconds = route.getDouble("duration")
+
+                    // Convert distance to KM and duration to Minutes
+                    val distanceKm = String.format("%.2f km", distanceMeters / 1000)
+                    val durationMin = String.format("%.1f min", durationSeconds / 60)
+
+                    // Extract route points
                     val coordinates = route.getJSONObject("geometry").getJSONArray("coordinates")
-                    val steps = route.getJSONArray("legs").getJSONObject(0).getJSONArray("steps")
-
-                    if (coordinates.length() < 2) {
-                        errorMessage = "Route too short or invalid."
-                        return
-                    }
-
                     val routePoints = mutableListOf<GeoPoint>()
                     for (i in 0 until coordinates.length()) {
                         val point = coordinates.getJSONArray(i)
                         routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
                     }
 
+                    // Extract step-by-step instructions
+                    val stepsArray = route.getJSONArray("legs").getJSONObject(0).getJSONArray("steps")
                     val instructions = mutableListOf<String>()
-                    for (i in 0 until steps.length()) {
-                        val step = steps.getJSONObject(i)
-                        val instruction = step.getString("maneuver") + ": " + step.getString("name")
-                        instructions.add(instruction)
+                    for (i in 0 until stepsArray.length()) {
+                        val step = stepsArray.getJSONObject(i)
+                        val modifier = step.optString("modifier", "straight")
+                        val roadName = step.optString("name", "unknown road")
+                        val maneuverType = step.getJSONObject("maneuver").optString("type", "continue")
+
+                        // Format the instruction
+                        val formattedInstruction = when (maneuverType) {
+                            "depart" -> "Start on $roadName"
+                            "turn" -> "Turn $modifier onto $roadName"
+                            "end of road" -> "At the end of the road, turn $modifier onto $roadName"
+                            "continue" -> "Continue $modifier on $roadName"
+                            "off ramp" -> "Take the exit ramp onto $roadName"
+                            "roundabout" -> "Enter the roundabout and take the exit towards $roadName"
+                            "destination" -> "You have arrived at your destination"
+                            else -> "Proceed on $roadName"
+                        }
+
+                        instructions.add(formattedInstruction)
                     }
 
-                    errorMessage = null // Clear any previous errors
-                    onRouteReceived(routePoints, instructions)
-                } ?: run {
-                    errorMessage = "Invalid response from server."
+                    onRouteReceived(routePoints, distanceKm, durationMin, instructions)
                 }
             }
         })
     }
+
+
 
     Column(
         modifier = Modifier
@@ -267,7 +310,16 @@ fun NavigationPage(navController: NavController) {
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-
+        // Show error message if any
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(3.dp)
+                    .zIndex(1f)
+            )
+        }
         OutlinedTextField(
             value = destinationText,
             onValueChange = { destinationText = it },
@@ -299,24 +351,82 @@ fun NavigationPage(navController: NavController) {
 
                 Button(
                     onClick = {
+                        isLoading = true
                         fetchCoordinates(destinationText, context) { location ->
                             if (location != null) {
                                 destinationLocation = location
                                 if (userLocation != null) {
-                                    fetchRoute(userLocation!!, location) { newRoutePoints, instructions ->
+                                    fetchRoute(userLocation!!, location) { newRoutePoints, distance, duration, instructions ->
                                         routePoints = newRoutePoints
+                                        tripDistance = distance
+                                        tripDuration = duration
+                                        tripInstructions = instructions
+                                        showTripDetails = true
+                                        errorMessage = ""
+                                        tts!!.speak("Destination set to $destinationText", TextToSpeech.QUEUE_FLUSH, null, null)
                                     }
                                 }
-                                tts!!.speak("Destination set to $destinationText", TextToSpeech.QUEUE_FLUSH, null, null)
-
+                            }else{
+                                errorMessage = "Invalid destination. Please enter a valid location."
+                                tts!!.speak("Invalid destination. Please enter a valid location.", TextToSpeech.QUEUE_FLUSH, null, null)
                             }
+                            isLoading = false
                         }
                     },
-
                     modifier = Modifier.padding(4.dp)
-                        .zIndex(1f)
                 ) {
-                    Text("Go")
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White)
+                    }else{
+                        Text("Go")
+                    }
+
+                }
+                if (showTripDetails) {
+                    AlertDialog(
+                        onDismissRequest = { showTripDetails = false },
+                        text = {
+                            Column(
+                                modifier = Modifier.padding(2.dp)
+                            ) {
+                                Text(
+                                    text = "Distance: $tripDistance",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Blue
+                                )
+
+                                Text(
+                                    text = "ETA: $tripDuration",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Blue
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    text = "DIRECTIONS",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Red,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Text(
+                                    text = currentInstruction,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = Color.DarkGray
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = { showTripDetails = false }) {
+                               Text("Close")
+                            }
+                        }
+                    )
                 }
             }
         )
@@ -368,17 +478,28 @@ fun NavigationPage(navController: NavController) {
 
 
 @SuppressLint("MissingPermission")
-fun fetchUserLocation(context: Context, fusedLocationClient: FusedLocationProviderClient, onLocationReceived: (GeoPoint) -> Unit) {
-    //val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000).build()
+fun fetchUserLocation(
+    context: Context,
+    fusedLocationClient: FusedLocationProviderClient,
+    onLocationUpdated: (GeoPoint) -> Unit
+) {
+    val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000) // Update every 2 seconds
+        .build()
 
-    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-        fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+    val locationCallback = object : LocationCallback() {
+        override fun onLocationResult(locationResult: LocationResult) {
+            val location: Location? = locationResult.lastLocation
             location?.let {
-                onLocationReceived(GeoPoint(it.latitude, it.longitude))
+                onLocationUpdated(GeoPoint(it.latitude, it.longitude))
             }
         }
     }
+
+    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
+    }
 }
+
 
 fun fetchCoordinates(destination: String, context: Context, onResult: (GeoPoint?) -> Unit) {
     val geocoder = Geocoder(context)
@@ -389,4 +510,43 @@ fun fetchCoordinates(destination: String, context: Context, onResult: (GeoPoint?
     } else {
         onResult(null)
     }
+}
+
+fun getClosestInstruction(userLocation: GeoPoint, routePoints: List<GeoPoint>, instructions: List<String>): String {
+    var closestIndex = 0
+    var minDistance = Double.MAX_VALUE
+
+    for (i in routePoints.indices) {
+        val point = routePoints[i]
+        val distance = calculateDistance(userLocation, point)
+
+        if (distance < minDistance) {
+            minDistance = distance
+            closestIndex = i
+        }
+    }
+
+    return if (closestIndex < instructions.size) {
+        instructions[closestIndex]
+    } else {
+        "You have arrived at your destination"
+    }
+}
+
+fun calculateDistance(point1: GeoPoint, point2: GeoPoint): Double {
+    val R = 6371e3 // Earth radius in meters
+    val lat1 = Math.toRadians(point1.latitude)
+    val lon1 = Math.toRadians(point1.longitude)
+    val lat2 = Math.toRadians(point2.latitude)
+    val lon2 = Math.toRadians(point2.longitude)
+
+    val dLat = lat2 - lat1
+    val dLon = lon2 - lon1
+
+    val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+
+    val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c // Distance in meters
 }
