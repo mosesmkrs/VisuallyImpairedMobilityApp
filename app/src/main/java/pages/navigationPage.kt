@@ -16,18 +16,41 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -36,8 +59,17 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.newapp.R
-import com.google.android.gms.location.*
-import okhttp3.*
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
@@ -45,9 +77,20 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
+import kotlin.math.roundToInt
 
 
+data class Alert(
+    val id: String,
+    val type: String,
+    val latitude: Double,
+    val longitude: Double,
+    val distance: Float
+)
 
 @Composable
 fun NavigationPage(navController: NavController) {
@@ -67,6 +110,9 @@ fun NavigationPage(navController: NavController) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var currentInstruction by remember { mutableStateOf("Loading directions...") }
     var isLoading by remember { mutableStateOf(false) }
+    var alerts by remember { mutableStateOf(listOf<Alert>()) }
+    var showDialog by remember { mutableStateOf(false) }
+
 
     tts = remember {
         TextToSpeech(context) { status ->
@@ -133,6 +179,13 @@ fun NavigationPage(navController: NavController) {
                     tts?.speak(currentInstruction, TextToSpeech.QUEUE_FLUSH, null, null)
                 }
             }
+
+            location.let { loc ->
+                fetchOverpassData(loc.latitude, loc.longitude) { newAlerts ->
+                    alerts = newAlerts
+                    Log.d("ALERTS_DATA", alerts.toString())
+                }
+            }
         }
     }
 
@@ -163,80 +216,139 @@ fun NavigationPage(navController: NavController) {
     }
 
 
-
-
-
     fun fetchRoute(
         start: GeoPoint,
         end: GeoPoint,
         onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
     ) {
-        val url = "https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson&steps=true"
+        val apiKey = "456b9753-702c-48ca-91d4-1c21e1b015a9"
+        val url = "https://graphhopper.com/api/1/route?point=${start.latitude},${start.longitude}&point=${end.latitude},${end.longitude}&profile=foot&points_encoded=false&key=$apiKey"
+
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
-                errorMessage = "Error fetching route. Please try again."
-                tts!!.speak("Error fetching route. Please try again.", TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.let { responseBody ->
                     val json = JSONObject(responseBody.string())
-                    if (!json.has("routes") || json.getJSONArray("routes").length() == 0) {
-                        errorMessage = "No route found."
-                        tts!!.speak("No route found for that destination. Please reenter your destination", TextToSpeech.QUEUE_FLUSH, null, null)
-                        Log.d("LOC_ERROR", errorMessage!!)
+
+                    if (!json.has("paths") || json.getJSONArray("paths").length() == 0) {
+                        Log.e("ROUTE_ERROR", "No route found.")
                         return
                     }
 
-                    val route = json.getJSONArray("routes").getJSONObject(0)
-                    val distanceMeters = route.getDouble("distance")
-                    val durationSeconds = route.getDouble("duration")
+                    val path = json.getJSONArray("paths").getJSONObject(0)
+                    val distanceMeters = path.getDouble("distance")
+                    val timeMillis = path.getDouble("time")
 
-                    // Convert distance to KM and duration to Minutes
-                    val distanceKm = String.format("%.2f km", distanceMeters / 1000)
-                    val durationMin = String.format("%.1f min", durationSeconds / 60)
+                    val distanceKm = distanceMeters / 1000.0
+                    val durationMin = timeMillis / (1000.0 * 60.0)
 
-                    // Extract route points
-                    val coordinates = route.getJSONObject("geometry").getJSONArray("coordinates")
+                    val formattedDistance = String.format("%.2f Km", distanceKm)
+                    val formattedDuration = String.format("%.2f Minutes", durationMin)
+
+                    val coordinates = path.getJSONObject("points").getJSONArray("coordinates")
                     val routePoints = mutableListOf<GeoPoint>()
                     for (i in 0 until coordinates.length()) {
                         val point = coordinates.getJSONArray(i)
                         routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
                     }
 
-                    // Extract step-by-step instructions
-                    val stepsArray = route.getJSONArray("legs").getJSONObject(0).getJSONArray("steps")
+                    // Extract step-by-step walking directions
+                    val instructionsArray = path.getJSONArray("instructions")
                     val instructions = mutableListOf<String>()
-                    for (i in 0 until stepsArray.length()) {
-                        val step = stepsArray.getJSONObject(i)
-                        val modifier = step.optString("modifier", "straight")
-                        val roadName = step.optString("name", "unknown road")
-                        val maneuverType = step.getJSONObject("maneuver").optString("type", "continue")
-
-                        // Format the instruction
-                        val formattedInstruction = when (maneuverType) {
-                            "depart" -> "Start on $roadName"
-                            "turn" -> "Turn $modifier onto $roadName"
-                            "end of road" -> "At the end of the road, turn $modifier onto $roadName"
-                            "continue" -> "Continue $modifier on $roadName"
-                            "off ramp" -> "Take the exit ramp onto $roadName"
-                            "roundabout" -> "Enter the roundabout and take the exit towards $roadName"
-                            "destination" -> "You have arrived at your destination"
-                            else -> "Proceed on $roadName"
-                        }
-
-                        instructions.add(formattedInstruction)
+                    for (i in 0 until instructionsArray.length()) {
+                        val step = instructionsArray.getJSONObject(i)
+                        val text = step.getString("text")
+                        val distance = step.getDouble("distance") / 1000.0
+                        val formattedStep = "$text (${String.format("%.2f Km", distance)})"
+                        instructions.add(formattedStep)
                     }
-
-                    onRouteReceived(routePoints, distanceKm, durationMin, instructions)
+                    onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
                 }
             }
         })
     }
+
+
+
+//    fun fetchDrivingRoute(
+//        start: GeoPoint,
+//        end: GeoPoint,
+//        onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
+//    ) {
+//        val apiKey = "456b9753-702c-48ca-91d4-1c21e1b015a9" // Get from https://graphhopper.com
+//        val url = "https://graphhopper.com/api/1/route?point=${start.latitude},${start.longitude}&point=${end.latitude},${end.longitude}&profile=foot&points_encoded=false&key=$apiKey"
+//        val client = OkHttpClient()
+//        val request = Request.Builder().url(url).build()
+//
+//        client.newCall(request).enqueue(object : Callback {
+//            override fun onFailure(call: Call, e: IOException) {
+//                Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
+//                errorMessage = "Error fetching route. Please try again."
+//                tts!!.speak("Error fetching route. Please try again.", TextToSpeech.QUEUE_FLUSH, null, null)
+//            }
+//
+//            override fun onResponse(call: Call, response: Response) {
+//                response.body?.let { responseBody ->
+//                    val json = JSONObject(responseBody.string())
+//                    if (!json.has("routes") || json.getJSONArray("routes").length() == 0) {
+//                        errorMessage = "No route found."
+//                        tts!!.speak("No route found for that destination. Please reenter your destination", TextToSpeech.QUEUE_FLUSH, null, null)
+//                        Log.d("LOC_ERROR", errorMessage!!)
+//                        return
+//                    }
+//
+//                    val route = json.getJSONArray("routes").getJSONObject(0)
+//                    val distanceMeters = calculateDistance(start,end)
+//                    val distanceKm = (distanceMeters / 1000)
+//                    val durationMin = (distanceMeters / 1000) / 5 * 60
+//
+//                    val formattedDistance = String.format("%.2f Km", distanceKm)
+//                    val formattedDuration = String.format("%.2f Minutes", durationMin)
+//
+//                    // Extract route points
+//                    val coordinates = route.getJSONObject("geometry").getJSONArray("coordinates")
+//                    val routePoints = mutableListOf<GeoPoint>()
+//                    for (i in 0 until coordinates.length()) {
+//                        val point = coordinates.getJSONArray(i)
+//                        routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
+//                    }
+//
+//                    // Extract step-by-step instructions
+//                    val stepsArray = route.getJSONArray("legs").getJSONObject(0).getJSONArray("steps")
+//                    val instructions = mutableListOf<String>()
+//                    for (i in 0 until stepsArray.length()) {
+//                        val step = stepsArray.getJSONObject(i)
+//                        val modifier = step.optString("modifier", "straight")
+//                        val roadName = step.optString("name", "unknown road")
+//                        val maneuverType = step.getJSONObject("maneuver").optString("type", "continue")
+//
+//                        // Format the instruction
+//                        val formattedInstruction = when (maneuverType) {
+//                            "depart" -> "Start on $roadName"
+//                            "turn" -> "Turn $modifier onto $roadName"
+//                            "end of road" -> "At the end of the road, turn $modifier onto $roadName"
+//                            "continue" -> "Continue $modifier on $roadName"
+//                            "off ramp" -> "Take the exit ramp onto $roadName"
+//                            "roundabout" -> "Enter the roundabout and take the exit towards $roadName"
+//                            "destination" -> "You have arrived at your destination"
+//                            else -> "Proceed on $roadName"
+//                        }
+//
+//                        instructions.add(formattedInstruction)
+//                    }
+//
+//                    onRouteReceived(routePoints, formattedDistance,
+//                        formattedDuration, instructions)
+//                }
+//            }
+//        })
+//    }
 
 
 
@@ -368,10 +480,24 @@ fun NavigationPage(navController: NavController) {
                                         routePoints = newRoutePoints
                                         tripDistance = distance
                                         tripDuration = duration
-                                        tripInstructions = instructions
                                         showTripDetails = true
                                         errorMessage = ""
-                                        tts!!.speak("Destination set to $destinationText", TextToSpeech.QUEUE_FLUSH, null, null)
+                                        // Set up a listener for when TTS finishes speaking
+                                        val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
+                                            // After TTS finishes, load the instructions
+                                            tripInstructions = instructions
+                                        }
+
+                                        // Set the listener to TTS
+                                        val params = HashMap<String, String>()
+                                        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "intro_utterance"
+                                        tts!!.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
+
+                                        // Speak the destination details
+                                        tts!!.speak("Destination set to $destinationText, $distance away, Estimated Time is $duration. Follow these instructions.....", TextToSpeech.QUEUE_FLUSH, params)
+//                                        tts!!.speak("Destination set to $destinationText, $distance away, Estimated Time is $duration. Follow these instructions.....", TextToSpeech.QUEUE_FLUSH, null, null)
+//                                        tripInstructions = instructions
+
                                     }
                                 }
                             }else{
@@ -439,9 +565,36 @@ fun NavigationPage(navController: NavController) {
             }
         )
 
+        // Pop-up alert dialog
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = { showDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showDialog = false }) {
+                        Text("OK")
+                    }
+                },
+                title = { Text("Nearby Alerts") },
+                text = {
+                    Column {
+                        alerts.forEach { alert ->
+                            Text("⚠️ ${alert.type} - ${alert.distance.roundToInt()} meters away")
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+            )
+        }
 
 
-        Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .weight(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
+
+        ) {
             AndroidView(factory = { ctx ->
                 MapView(ctx).apply {
                     Configuration.getInstance()
@@ -557,4 +710,104 @@ fun calculateDistance(point1: GeoPoint, point2: GeoPoint): Double {
 
     val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c // Distance in meters
+}
+
+
+//ALERTS
+
+fun fetchOverpassData(latitude: Double, longitude: Double, onResult: (List<Alert>) -> Unit) {
+    val overpassQuery = """
+        [out:json];
+        (
+            way["highway"="construction"](around:5000,$latitude,$longitude);
+            way["highway"="crossing"](around:5000,$latitude,$longitude);
+            way["highway"="motorway"](around:5000,$latitude,$longitude);
+            way["highway"="primary"](around:5000,$latitude,$longitude);
+            way["highway"="roundabout"](around:5000,$latitude,$longitude);
+            way["highway"="secondary"](around:5000,$latitude,$longitude);
+            way["highway"="tertiary"](around:5000,$latitude,$longitude);
+            way["highway"="residential"](around:5000,$latitude,$longitude);
+            way["highway"="trunk"](around:5000,$latitude,$longitude);
+        );
+        out body;
+    """.trimIndent()
+
+    val overpassUrl = "https://overpass-api.de/api/interpreter?data=$overpassQuery"
+
+    try {
+        val url = URL(overpassUrl)
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
+        connection.connect()
+
+        val responseCode = connection.responseCode
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val reader = InputStreamReader(connection.inputStream)
+            val response = reader.readText()
+            val jsonResponse = JSONObject(response)
+            val newAlerts = parseOverpassResponse(jsonResponse, latitude, longitude)
+            onResult(newAlerts)
+        } else {
+            // Handle HTTP error
+        }
+    } catch (e: Exception) {
+        // Handle network errors
+    }
+}
+
+
+fun parseOverpassResponse(response: JSONObject, userLatitude: Double, userLongitude: Double): List<Alert> {
+    val elements = response.getJSONArray("elements")
+    val newAlerts = mutableListOf<Alert>()
+
+    for (i in 0 until elements.length()) {
+        val element = elements.getJSONObject(i)
+        val tags = element.optJSONObject("tags") ?: continue
+
+        if (element.has("lat") && element.has("lon")) {
+            val latitude = element.getDouble("lat")
+            val longitude = element.getDouble("lon")
+
+            // Check if the element has a "highway" tag
+            if (tags.has("highway")) {
+                val type = tags.getString("highway")
+
+                val validTypes = listOf(
+                    "construction", "crossing", "motorway", "primary",
+                    "roundabout", "secondary", "tertiary", "residential", "trunk"
+                )
+
+                if (type in validTypes) {
+                    val distance = calculateDistances(userLatitude, userLongitude, latitude, longitude)
+
+                    val alert = Alert(
+                        id = element.optString("id", ""),
+                        type = type.replaceFirstChar { it.uppercase() },  // Capitalize first letter
+                        latitude = latitude,
+                        longitude = longitude,
+                        distance = distance
+                    )
+
+                    newAlerts.add(alert)
+                }
+            }
+        }
+    }
+
+    return newAlerts.sortedBy { it.distance }
+}
+
+// Calculate the distance between the user's location and the alert location
+fun calculateDistances(userLat: Double, userLon: Double, alertLat: Double, alertLon: Double): Float {
+    val userLocation = Location("user").apply {
+        latitude = userLat
+        longitude = userLon
+    }
+
+    val alertLocation = Location("alert").apply {
+        latitude = alertLat
+        longitude = alertLon
+    }
+
+    return userLocation.distanceTo(alertLocation)
 }

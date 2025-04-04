@@ -26,6 +26,7 @@ android {
 
         buildConfigField("String", "API_KEY", "\"${properties.getProperty("API_KEY")}\"")
         buildConfigField("String", "FIREBASE_KEY", "\"${properties.getProperty("FIREBASE_KEY")}\"")
+        buildConfigField("String", "GRASSHOPPER_API_KEY", "\"${properties.getProperty("GRASHOPPER_API_KEY")}\"")
 
     }
 
