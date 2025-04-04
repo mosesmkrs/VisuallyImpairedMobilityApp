@@ -2,7 +2,6 @@ package pages
 
 
 import android.speech.tts.TextToSpeech
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -35,19 +34,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import apis.GoogleAuthClient
-import apis.UserApiClient
-import apis.UserRequest
 import com.example.newapp.R
 import com.example.newapp.Routes
+import com.example.newapp.SQL.users.UserViewModel
+import com.example.newapp.SQL.users.Users
 import kotlinx.coroutines.launch
-import okhttp3.ResponseBody
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
-import java.time.LocalDateTime
 import java.util.Locale
 
 @Composable
@@ -87,8 +82,9 @@ fun GoogleSignInScreen(
 
 
 
+
 //    fun submitUser() {
-//        val userRequest = UserRequest(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
+//        val userRequest = User(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
 //        val call = UserApiClient.api.createUser(userRequest)
 //                call.enqueue(object : Callback<ResponseBody> {
 //                    override fun onResponse(
@@ -112,6 +108,7 @@ fun GoogleSignInScreen(
 //                    }
 //                })
 //    }
+    //val userviewmodel: UserViewModel = ViewModelProvider(this).get(UserViewModel::class.java)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -129,6 +126,15 @@ fun GoogleSignInScreen(
                                 val newUserName = googleAuthClient.getUserName() ?: "Unknown"
                                 speakText(tts, "Sign-in successful! Welcome, $newUserName")
                                 isSignIn = true
+
+                                // Insert the user's data into the Room database using the UserViewModel
+                                val users = Users(
+                                    firebaseUUID = googleAuthClient.getUserId() ?: "",
+                                    name = newUserName,
+                                    email = googleAuthClient.getUserEmail() ?: "",
+                                    photoURL = googleAuthClient.getUserPhotoUrl() ?: "",
+                                )
+                              //  UserViewModel.insert(users)
                                 navController.navigate(Routes.ContactFormScreen)
                             } else {
                                 speakText(tts, "Sign-in failed. Please try again.")
@@ -195,6 +201,8 @@ fun GoogleSignInScreen(
 
 
 }
+
+
 
 // Utility function to handle speaking
 fun speakText(tts: TextToSpeech, text: String) {

@@ -5,6 +5,9 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.gms.google.services)
+    alias(libs.plugins.kotlin.kapt)
+
+
 }
 
 android {
@@ -127,6 +130,9 @@ dependencies {
     implementation ("androidx.compose.ui:ui:1.4.3")
     implementation ("androidx.compose.runtime:runtime:1.4.3")
     implementation ("androidx.compose.material:material-icons-extended:1.6.1")
+    implementation ("androidx.room:room-runtime:2.5.0")
+    kapt ("androidx.room:room-compiler:2.5.0")
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.0")
 
 
 

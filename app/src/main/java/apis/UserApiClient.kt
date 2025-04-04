@@ -8,7 +8,9 @@ import retrofit2.converter.scalars.ScalarsConverterFactory
 
 
 object UserApiClient {
-    private const val BASE_URL = "http://10.33.49.132:8080/"
+    //private const val BASE_URL = "http://10.33.49.132:8080/"  //emulator
+    private const val BASE_URL = "http://192.168.43.60:8080/"  //actual device
+
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
