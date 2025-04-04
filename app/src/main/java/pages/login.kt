@@ -134,7 +134,7 @@ fun GoogleSignInScreen(
                                     email = googleAuthClient.getUserEmail() ?: "",
                                     photoURL = googleAuthClient.getUserPhotoUrl() ?: "",
                                 )
-                              //  UserViewModel.insert(users)
+                              //  UserViewModel.insert(users)  // please help me fix hii part nimekwama :)
                                 navController.navigate(Routes.ContactFormScreen)
                             } else {
                                 speakText(tts, "Sign-in failed. Please try again.")
