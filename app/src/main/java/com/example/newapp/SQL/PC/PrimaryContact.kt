@@ -4,10 +4,9 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "primarycontacts")
-data class primaryContact (
+data class PrimaryContact (
     @PrimaryKey(autoGenerate = true) val pcID: Int = 0,
     val userID: Int,
     val contactname: String,
-    val contactnumber: String,
-
-    )
+    val contactnumber: String
+)

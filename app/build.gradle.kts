@@ -5,9 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.gms.google.services)
-    alias(libs.plugins.kotlin.kapt)
-
-
+    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -130,9 +128,15 @@ dependencies {
     implementation ("androidx.compose.ui:ui:1.4.3")
     implementation ("androidx.compose.runtime:runtime:1.4.3")
     implementation ("androidx.compose.material:material-icons-extended:1.6.1")
-    implementation ("androidx.room:room-runtime:2.5.0")
-    kapt ("androidx.room:room-compiler:2.5.0")
-    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.0")
+    // Room dependencies - using consistent versions
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion") // For Kotlin coroutines support
+    kapt("androidx.room:room-compiler:$roomVersion")
+    annotationProcessor("androidx.room:room-compiler:$roomVersion") // Fallback for Java
+    
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.0") // For ViewModel support
 
 
 

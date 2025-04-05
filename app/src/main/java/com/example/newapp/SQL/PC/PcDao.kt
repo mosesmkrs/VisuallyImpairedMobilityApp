@@ -11,14 +11,14 @@ import androidx.room.Update
 @Dao
 interface PcDao {
     @Insert
-    suspend fun insert(pcontact: primaryContact)
+    suspend fun insert(pcontact: PrimaryContact)
 
-    @Query("SELECT * FROM users ORDER BY userID DESC")
-    fun getAllContacts(): LiveData<List<primaryContact>>
+    @Query("SELECT * FROM primarycontacts ORDER BY pcID DESC")
+    fun getAllContacts(): LiveData<List<PrimaryContact>>
 
     @Update
-    suspend fun update(pcontact: primaryContact)
+    suspend fun update(pcontact: PrimaryContact)
 
     @Delete
-    suspend fun delete(pcontact: primaryContact)
+    suspend fun delete(pcontact: PrimaryContact)
 }

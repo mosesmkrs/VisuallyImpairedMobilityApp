@@ -5,10 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.newapp.SQL.PC.PcDao
+import com.example.newapp.SQL.PC.PrimaryContact
 import com.example.newapp.SQL.users.UserDao
 import com.example.newapp.SQL.users.Users
 
-@Database(entities = [Users::class], version = 1, exportSchema = false)
+@Database(entities = [Users::class, PrimaryContact::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun pContactDao(): PcDao

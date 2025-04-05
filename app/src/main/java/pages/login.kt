@@ -1,7 +1,9 @@
 package pages
 
 
+import android.app.Application
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import apis.GoogleAuthClient
@@ -54,12 +57,20 @@ fun GoogleSignInScreen(
 ) {
     val context = LocalContext.current
     var isSignIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
-    val userId by remember { mutableStateOf(googleAuthClient.getUserId()) }
-    val userName by remember { mutableStateOf(googleAuthClient.getUserName() ?: "Unknown") }
-    val userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
+//    val userId by remember { mutableStateOf(googleAuthClient.getUserId()) }
+//    val userName by remember { mutableStateOf(googleAuthClient.getUserName() ?: "Unknown") }
+//    val userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
     var isLoading by remember { mutableStateOf(false) }
     var ttsReady by remember { mutableStateOf(false) }
-
+    var dbSaveSuccess by remember { mutableStateOf(true) }
+    
+    // Initialize UserViewModel for SQLite database operations
+    val userViewModel = remember {
+        ViewModelProvider(
+            lifecycleOwner as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(UserViewModel::class.java)
+    }
 
     // Initialize TTS callback
     val tts = remember {
@@ -78,37 +89,6 @@ fun GoogleSignInScreen(
         }
     }
 
-
-
-
-
-
-//    fun submitUser() {
-//        val userRequest = User(1,"ugfdhjx", "cgxkhGL", "gmail.com", LocalDateTime.now())
-//        val call = UserApiClient.api.createUser(userRequest)
-//                call.enqueue(object : Callback<ResponseBody> {
-//                    override fun onResponse(
-//                        call: Call<ResponseBody>,
-//                        response: Response<ResponseBody>
-//                    ) {
-//                        isLoading = false
-//                        if (response.isSuccessful) {
-//                            Log.d("API_SUCCESS", "Response: ${response.body()?.string()}")
-//                        } else {
-//                            // Log error response
-//                            Log.e("API_ERROR", "Error Code: ${response.code()}")
-//                            Log.e("API_ERROR", "Error Body: ${response.errorBody()?.string()}")
-//                        }
-//                    }
-//
-//                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-//                        isLoading = false
-//                        Log.e("API_FAILURE", "Request Failed: ${t.message}", t)
-//                        speakText(tts, "An error occurred. Please check your internet connection.")
-//                    }
-//                })
-//    }
-    //val userviewmodel: UserViewModel = ViewModelProvider(this).get(UserViewModel::class.java)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -124,17 +104,31 @@ fun GoogleSignInScreen(
                             val success = googleAuthClient.signIn()
                             if (success) {
                                 val newUserName = googleAuthClient.getUserName() ?: "Unknown"
-                                speakText(tts, "Sign-in successful! Welcome, $newUserName")
-                                isSignIn = true
-
-                                // Insert the user's data into the Room database using the UserViewModel
-                                val users = Users(
-                                    firebaseUUID = googleAuthClient.getUserId() ?: "",
+                                val newUserId = googleAuthClient.getUserId() ?: ""
+                                val newUserEmail = googleAuthClient.getUserEmail() ?: ""
+                                val newUserPhotoUrl = googleAuthClient.getUserPhotoUrl() ?: ""
+                                
+                                // Create a new user object for SQLite database
+                                val user = Users(
+                                    firebaseUUID = newUserId,
                                     name = newUserName,
-                                    email = googleAuthClient.getUserEmail() ?: "",
-                                    photoURL = googleAuthClient.getUserPhotoUrl() ?: "",
+                                    email = newUserEmail,
+                                    photoURL = newUserPhotoUrl
                                 )
-                              //  UserViewModel.insert(users)  // please help me fix hii part nimekwama :)
+                                
+                                try {
+                                    // Insert user data into SQLite database
+                                    userViewModel.insert(user)
+                                    dbSaveSuccess = true
+                                    Log.d("SQLiteDB", "User saved to SQLite database: $newUserName")
+                                    speakText(tts, "Sign-in successful! Welcome, $newUserName")
+                                } catch (e: Exception) {
+                                    dbSaveSuccess = false
+                                    Log.e("SQLiteDB", "Error saving user to SQLite database: ${e.message}")
+                                    speakText(tts, "Sign-in successful! Welcome, $newUserName. Note: Some user data could not be saved locally.")
+                                }
+                                
+                                isSignIn = true
                                 navController.navigate(Routes.ContactFormScreen)
                             } else {
                                 speakText(tts, "Sign-in failed. Please try again.")
@@ -185,8 +179,40 @@ fun GoogleSignInScreen(
                 OutlinedButton(onClick ={
                     lifecycleOwner.lifecycleScope.launch {
                         isLoading = true
-                        isSignIn = googleAuthClient.signIn()
-
+                        speakText(tts, "Signing in with Google. Please wait.")
+                        
+                        val success = googleAuthClient.signIn()
+                        if (success) {
+                            val newUserName = googleAuthClient.getUserName() ?: "Unknown"
+                            val newUserId = googleAuthClient.getUserId() ?: ""
+                            val newUserEmail = googleAuthClient.getUserEmail() ?: ""
+                            val newUserPhotoUrl = googleAuthClient.getUserPhotoUrl() ?: ""
+                            
+                            // Create a new user object for SQLite database
+                            val user = Users(
+                                firebaseUUID = newUserId,
+                                name = newUserName,
+                                email = newUserEmail,
+                                photoURL = newUserPhotoUrl
+                            )
+                            
+                            try {
+                                // Insert user data into SQLite database
+                                userViewModel.insert(user)
+                                dbSaveSuccess = true
+                                Log.d("SQLiteDB", "User saved to SQLite database: $newUserName")
+                                speakText(tts, "Sign-in successful! Welcome, $newUserName")
+                            } catch (e: Exception) {
+                                dbSaveSuccess = false
+                                Log.e("SQLiteDB", "Error saving user to SQLite database: ${e.message}")
+                                speakText(tts, "Sign-in successful! Welcome, $newUserName. Note: Some user data could not be saved locally.")
+                            }
+                            
+                            isSignIn = true
+                        } else {
+                            speakText(tts, "Sign-in failed. Please try again.")
+                            isLoading = false
+                        }
                     }
                 }) {
                     Text(
