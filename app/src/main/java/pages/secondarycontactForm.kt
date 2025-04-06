@@ -1,6 +1,8 @@
 package pages
 
 import retrofit2.Call
+import android.app.Application
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,6 +16,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.navigation.NavController
 import com.example.newapp.Routes
 import apis.secondaryContactApiClient
@@ -34,8 +38,12 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
+import apis.GoogleAuthClient
 import apis.PrimaryContactRequest
 import apis.primaryContactApiClient
+import com.example.newapp.SQL.SC.SecondaryContact
+import com.example.newapp.SQL.SC.sCViewModel
+import com.example.newapp.SQL.users.UserViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -44,14 +52,51 @@ fun SecondaryContactForm(navController: NavController) {
     val context = LocalContext.current
     val tts = remember { TextToSpeech(context) { } }
     val scope = rememberCoroutineScope()
-
-
-    // Secondary Contact
     var secondaryName by remember { mutableStateOf("") }
     var secondaryPhone by remember { mutableStateOf("") }
     var secondaryNameError by remember { mutableStateOf<String?>(null) }
     var secondaryPhoneError by remember { mutableStateOf<String?>(null) }
     var contactSuggestions by remember { mutableStateOf(listOf<String>()) }
+    var dbSaveSuccess by remember { mutableStateOf(true) }
+    
+    // Initialize ViewModels
+    val userViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(UserViewModel::class.java)
+    }
+    
+    val contactViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(sCViewModel::class.java)
+    }
+    
+    // Get current user ID
+    val googleAuthClient = remember { GoogleAuthClient(context) }
+    val currentFirebaseUUID = googleAuthClient.getUserId() ?: ""
+    var currentUserID by remember { mutableStateOf(0) }
+    
+    // Load current user ID from Firebase UUID
+    LaunchedEffect(currentFirebaseUUID) {
+        if (currentFirebaseUUID.isNotEmpty()) {
+            val user = userViewModel.getUserByFirebaseUUID(currentFirebaseUUID)
+            if (user != null) {
+                currentUserID = user.userID
+                // Check if secondary contact already exists
+                val existingContact = contactViewModel.getSecondaryContact(currentUserID)
+                if (existingContact != null) {
+                    secondaryName = existingContact.contactname
+                    secondaryPhone = existingContact.contactnumber
+                    Log.d("ContactForm", "Loaded existing secondary contact: $secondaryName")
+                }
+            }
+        }
+    }
+
+
 
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -82,8 +127,9 @@ fun SecondaryContactForm(navController: NavController) {
             secondaryNameError = null
         }
 
-        if (!secondaryPhone.matches(Regex("^\\d{10}$"))) {
-            secondaryPhoneError = "Enter a valid 10-digit phone number"
+        // Accept international formats like +2547123456789 or regular 10-digit numbers
+        if (!secondaryPhone.matches(Regex("^(\\+\\d{1,15}|\\d{10,15})$"))) {
+            secondaryPhoneError = "Enter a valid phone number (10+ digits, can include + prefix)"
             isValid = false
         } else {
             secondaryPhoneError = null
@@ -93,20 +139,53 @@ fun SecondaryContactForm(navController: NavController) {
 
     fun submitContact() {
         if (!validateForm()) return
+        
+        // Save to Firebase (keep existing API for backward compatibility)
         val newContact = PrimaryContactRequest(secondaryName, secondaryPhone, "Secondary")
         primaryContactApiClient.api.createPrimaryContact(newContact).enqueue(object : retrofit2.Callback<Void> {
             override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
                 if (response.isSuccessful) {
-                    tts.speak("Secondary contact saved successfully", TextToSpeech.QUEUE_FLUSH, null, null)
-                    navController.navigate(Routes.SecondaryContactForm)
+                    Log.d("ContactForm", "Secondary contact saved to Firebase")
                 } else {
-                    Toast.makeText(context, "Failed to save contact", Toast.LENGTH_SHORT).show()
+                    Log.e("ContactForm", "Failed to save secondary contact to Firebase")
                 }
             }
             override fun onFailure(call: Call<Void>, t: Throwable) {
-                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                Log.e("ContactForm", "Error saving secondary contact to Firebase: ${t.message}")
             }
         })
+        
+        // Save to SQLite
+        scope.launch {
+            try {
+                if (currentUserID > 0) {
+                    val contact = SecondaryContact(
+                        userID = currentUserID,
+                        contactname = secondaryName,
+                        contactnumber = secondaryPhone
+                    )
+                    
+                    val result = contactViewModel.insertOrUpdateContact(contact)
+                    if (result > 0) {
+                        dbSaveSuccess = true
+                        Log.d("ContactForm", "Secondary contact saved to SQLite: $secondaryName")
+                        tts.speak("Secondary contact saved successfully", TextToSpeech.QUEUE_FLUSH, null, null)
+                        navController.navigate(Routes.homeScreen)
+                    } else {
+                        dbSaveSuccess = false
+                        Log.e("ContactForm", "Failed to save secondary contact to SQLite")
+                        Toast.makeText(context, "Failed to save contact", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.e("ContactForm", "Cannot save secondary contact: User not logged in or user ID not found")
+                    Toast.makeText(context, "Please log in to save contacts", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                dbSaveSuccess = false
+                Log.e("ContactForm", "Error saving secondary contact to SQLite: ${e.message}")
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun fetchSuggestions(query: String) {
@@ -181,11 +260,6 @@ fun SecondaryContactForm(navController: NavController) {
         speechRecognizer.startListening(intent)
     }
 
-    fun goHome() {
-        tts.speak("Going back to homepage", TextToSpeech.QUEUE_FLUSH, null, null)
-        navController.popBackStack()
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -195,19 +269,18 @@ fun SecondaryContactForm(navController: NavController) {
                 detectTapGestures(
                     onTap = { startVoiceInput() }, // 👈 Single Tap triggers voice input
                     onDoubleTap = { submitContact() },
-                    onLongPress = { goHome() }
                 )
             },
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "Emergency Primary Contact",
+            text = "Emergency Secondary Contact",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
             textAlign = TextAlign.Center
         )
-        Text("Primary Contact", style = MaterialTheme.typography.titleMedium)
+        Text("Secondary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = secondaryName,
             onValueChange = {
@@ -260,7 +333,6 @@ fun SecondaryContactForm(navController: NavController) {
         Button(
             onClick = {
                 submitContact()
-                navController.navigate(Routes.homeScreen)
             },
             modifier = Modifier.fillMaxWidth()
         ) {

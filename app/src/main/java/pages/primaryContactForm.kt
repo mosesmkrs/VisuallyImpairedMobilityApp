@@ -1,6 +1,7 @@
 package pages
 
 import android.Manifest
+import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import android.provider.ContactsContract
@@ -8,6 +9,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,10 +29,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.navigation.NavController
+import apis.GoogleAuthClient
 import apis.PrimaryContactRequest
 import com.example.newapp.Routes
 import apis.primaryContactApiClient
+import com.example.newapp.SQL.PC.PrimaryContact
+import com.example.newapp.SQL.PC.pCViewModel
+import com.example.newapp.SQL.users.UserViewModel
 import kotlinx.coroutines.launch
 import retrofit2.Call
 
@@ -39,12 +47,51 @@ fun ContactFormScreen(navController: NavController) {
     val context = LocalContext.current
     val tts = remember { TextToSpeech(context) { } }
     val scope = rememberCoroutineScope()
-
     var primaryName by remember { mutableStateOf("") }
     var primaryPhone by remember { mutableStateOf("") }
     var primaryNameError by remember { mutableStateOf<String?>(null) }
     var primaryPhoneError by remember { mutableStateOf<String?>(null) }
     var contactSuggestions by remember { mutableStateOf(listOf<String>()) }
+    var dbSaveSuccess by remember { mutableStateOf(true) }
+    
+    // Initialize ViewModels
+    val userViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(UserViewModel::class.java)
+    }
+    
+    val contactViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(pCViewModel::class.java)
+    }
+    
+    // Get current user ID
+    val googleAuthClient = remember { GoogleAuthClient(context) }
+    val currentFirebaseUUID = googleAuthClient.getUserId() ?: ""
+    var currentUserID by remember { mutableStateOf(0) }
+    
+    // Load current user ID from Firebase UUID
+    LaunchedEffect(currentFirebaseUUID) {
+        if (currentFirebaseUUID.isNotEmpty()) {
+            val user = userViewModel.getUserByFirebaseUUID(currentFirebaseUUID)
+            if (user != null) {
+                currentUserID = user.userID
+                // Check if primary contact already exists
+                val existingContact = contactViewModel.getPrimaryContact(currentUserID)
+                if (existingContact != null) {
+                    primaryName = existingContact.contactname
+                    primaryPhone = existingContact.contactnumber
+                    Log.d("ContactForm", "Loaded existing primary contact: $primaryName")
+                }
+            }
+        }
+    }
+
+
 
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -70,8 +117,9 @@ fun ContactFormScreen(navController: NavController) {
             primaryNameError = null
         }
 
-        if (!primaryPhone.matches(Regex("^\\d{10}$"))) {
-            primaryPhoneError = "Enter a valid 10-digit phone number"
+        // Accept international formats like +2547123456789 or regular 10-digit numbers
+        if (!primaryPhone.matches(Regex("^(\\+\\d{1,15}|\\d{10,15})$"))) {
+            primaryPhoneError = "Enter a valid phone number (10+ digits, can include + prefix)"
             isValid = false
         } else {
             primaryPhoneError = null
@@ -81,20 +129,54 @@ fun ContactFormScreen(navController: NavController) {
 
     fun submitContact() {
         if (!validateForm()) return
+        
+        // Save to Firebase (keep existing API for backward compatibility)
         val newContact = PrimaryContactRequest(primaryName, primaryPhone, "Primary")
         primaryContactApiClient.api.createPrimaryContact(newContact).enqueue(object : retrofit2.Callback<Void> {
             override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
                 if (response.isSuccessful) {
-                    tts.speak("Primary contact saved successfully", TextToSpeech.QUEUE_FLUSH, null, null)
+                    Log.d("ContactForm", "Primary contact saved to Firebase")
                     navController.navigate(Routes.SecondaryContactForm)
                 } else {
-                    Toast.makeText(context, "Failed to save contact", Toast.LENGTH_SHORT).show()
+                    Log.e("ContactForm", "Failed to save contact to Firebase")
                 }
             }
             override fun onFailure(call: Call<Void>, t: Throwable) {
-                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                Log.e("ContactForm", "Error saving to Firebase: ${t.message}")
             }
         })
+        
+        // Save to SQLite
+        scope.launch {
+            try {
+                if (currentUserID > 0) {
+                    val contact = PrimaryContact(
+                        userID = currentUserID,
+                        contactname = primaryName,
+                        contactnumber = primaryPhone
+                    )
+                    
+                    val result = contactViewModel.insertOrUpdateContact(contact)
+                    if (result > 0) {
+                        dbSaveSuccess = true
+                        Log.d("ContactForm", "Primary contact saved to SQLite: $primaryName")
+                        tts.speak("Primary contact saved successfully", TextToSpeech.QUEUE_FLUSH, null, null)
+                        navController.navigate(Routes.SecondaryContactForm)
+                    } else {
+                        dbSaveSuccess = false
+                        Log.e("ContactForm", "Failed to save contact to SQLite")
+                        Toast.makeText(context, "Failed to save contact", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.e("ContactForm", "Cannot save contact: User not logged in or user ID not found")
+                    Toast.makeText(context, "Please log in to save contacts", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                dbSaveSuccess = false
+                Log.e("ContactForm", "Error saving contact to SQLite: ${e.message}")
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun fetchSuggestions(query: String) {
@@ -169,10 +251,6 @@ fun ContactFormScreen(navController: NavController) {
         speechRecognizer.startListening(intent)
     }
 
-    fun goHome() {
-        tts.speak("Going back to homepage", TextToSpeech.QUEUE_FLUSH, null, null)
-        navController.popBackStack()
-    }
 
     Column(
         modifier = Modifier
@@ -183,7 +261,6 @@ fun ContactFormScreen(navController: NavController) {
                 detectTapGestures(
                     onTap = { startVoiceInput() }, // 👈 Single Tap triggers voice input
                     onDoubleTap = { submitContact() },
-                    onLongPress = { goHome() }
                 )
             },
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -248,7 +325,6 @@ fun ContactFormScreen(navController: NavController) {
         Button(
             onClick = {
                 submitContact()
-                navController.navigate(Routes.SecondaryContactForm)
                       },
             modifier = Modifier.fillMaxWidth()
         ) {

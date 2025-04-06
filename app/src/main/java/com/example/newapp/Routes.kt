@@ -10,4 +10,5 @@ object Routes {
     var ContactFormScreen = "ContactFormScreen"
     var SecondaryContactForm = "SecondaryContactForm"
     var MatatuPage = "MatatuPage"
+    var DatabaseViewerScreen = "DatabaseViewerScreen"
 }

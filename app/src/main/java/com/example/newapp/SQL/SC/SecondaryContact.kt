@@ -1,4 +1,4 @@
-package com.example.newapp.SQL.PC
+package com.example.newapp.SQL.SC
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 import com.example.newapp.SQL.users.Users
 
 @Entity(
-    tableName = "primarycontacts",
+    tableName = "secondarycontacts",
     foreignKeys = [
         ForeignKey(
             entity = Users::class,
@@ -18,8 +18,8 @@ import com.example.newapp.SQL.users.Users
     ],
     indices = [Index("userID")]
 )
-data class PrimaryContact (
-    @PrimaryKey(autoGenerate = true) val pcID: Int = 0,
+data class SecondaryContact (
+    @PrimaryKey(autoGenerate = true) val scID: Int = 0,
     val userID: Int,
     val contactname: String,
     val contactnumber: String

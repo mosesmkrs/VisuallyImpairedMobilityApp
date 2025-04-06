@@ -13,6 +13,7 @@ import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
 import pages.AlertsPage
 import pages.ContactFormScreen
+import pages.DatabaseViewerScreen
 import pages.GoogleSignInScreen
 import pages.HomeScreen
 import pages.MatatuPage
@@ -88,6 +89,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
                 composable(Routes.MatatuPage){
                     MatatuPage(navController)
+                }
+                composable(Routes.DatabaseViewerScreen){
+                    DatabaseViewerScreen(navController, textToSpeech)
                 }
             }
         }

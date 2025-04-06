@@ -73,6 +73,15 @@ dependencies {
     implementation("com.google.firebase:firebase-database-ktx:20.2.1")
     implementation("com.google.android.gms:play-services-vision:20.1.3")
     implementation("androidx.security:security-crypto:1.0.0")
+    
+    // Room dependencies
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    annotationProcessor("androidx.room:room-compiler:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+    
+    // Compose LiveData integration
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -135,8 +144,10 @@ dependencies {
     kapt("androidx.room:room-compiler:$roomVersion")
     annotationProcessor("androidx.room:room-compiler:$roomVersion") // Fallback for Java
     
+    // Lifecycle components
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.0") // For ViewModel support
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.0") // For LiveData.asFlow() extension
 
 
 

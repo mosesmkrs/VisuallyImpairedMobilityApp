@@ -7,6 +7,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +45,24 @@ import com.example.newapp.Routes
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.ui.text.style.TextOverflow
+import android.app.Application
+import android.util.Log
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.newapp.SQL.PC.PrimaryContact
+import com.example.newapp.SQL.PC.pCViewModel
+import com.example.newapp.SQL.SC.SecondaryContact
+import com.example.newapp.SQL.SC.sCViewModel
+import com.example.newapp.SQL.users.UserViewModel
 
 @Composable
 fun ProfilePage(googleAuthClient: GoogleAuthClient,
@@ -55,7 +77,6 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
     val context = LocalContext.current
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
-
     // Text-to-Speech setup
     tts = remember {
         TextToSpeech(context) { status ->
@@ -67,8 +88,51 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
         }
     }
 
-
-
+    // Initialize ViewModels
+    val userViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(UserViewModel::class.java)
+    }
+    
+    val primaryContactViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(pCViewModel::class.java)
+    }
+    
+    val secondaryContactViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(sCViewModel::class.java)
+    }
+    
+    // Get current user ID and contacts
+    val currentFirebaseUUID = googleAuthClient.getUserId() ?: ""
+    var currentUserID by remember { mutableStateOf(0) }
+    var primaryContact by remember { mutableStateOf<PrimaryContact?>(null) }
+    var secondaryContact by remember { mutableStateOf<SecondaryContact?>(null) }
+    
+    // Load user and contacts from SQLite
+    LaunchedEffect(currentFirebaseUUID) {
+        if (currentFirebaseUUID.isNotEmpty()) {
+            val user = userViewModel.getUserByFirebaseUUID(currentFirebaseUUID)
+            if (user != null) {
+                currentUserID = user.userID
+                Log.d("ProfilePage", "Loaded user ID: $currentUserID")
+                
+                // Load contacts
+                primaryContact = primaryContactViewModel.getPrimaryContact(currentUserID)
+                secondaryContact = secondaryContactViewModel.getSecondaryContact(currentUserID)
+                
+                Log.d("ProfilePage", "Primary contact: ${primaryContact?.contactname ?: "None"}")
+                Log.d("ProfilePage", "Secondary contact: ${secondaryContact?.contactname ?: "None"}")
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -228,9 +292,6 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             )
         }
 
-
-
-
         Spacer(modifier = Modifier.height(24.dp))
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
@@ -238,10 +299,19 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             Text( text = "Emergency Contacts", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
 
-            EmergencyContactCard("Jane Doe", "Primary Contact") {
+            EmergencyContactCard(
+                type = "Primary Contact",
+                name = primaryContact?.contactname ?: "Add Primary Contact",
+                phone = primaryContact?.contactnumber
+            ) {
                 navController.navigate(Routes.ContactFormScreen)
             }
-            EmergencyContactCard("Jane Doe", "Secondary Contact") {
+            
+            EmergencyContactCard(
+                type = "Secondary Contact",
+                name = secondaryContact?.contactname ?: "Add Secondary Contact",
+                phone = secondaryContact?.contactnumber
+            ) {
                 navController.navigate(Routes.SecondaryContactForm)
             }
         }
@@ -256,8 +326,39 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             SettingItem("Alert Settings", R.drawable.alert_icon)
             SettingItem("Audio Settings", R.drawable.audio_icon)
             SettingItem("Security & Privacy", R.drawable.shield_icon)
+            
+            // Database Viewer Button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFEFEFEF), shape = RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { navController.navigate(Routes.DatabaseViewerScreen) }
+                    .padding(12.dp)
+                    .semantics { contentDescription = "Database Viewer. View SQLite database tables." },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.settings_icon), // Using settings icon as placeholder
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Database Viewer",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    painter = painterResource(id = R.drawable.arrow_forward_icon),
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
-
 
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)
@@ -265,34 +366,31 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
 }
 
 @Composable
-fun EmergencyContactCard(name: String, type: String, onClick: () -> Unit) {
-    Row(
+fun EmergencyContactCard(name: String, type: String, phone: String? = null, onClick: () -> Unit) {
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFEFEFEF), shape = RoundedCornerShape(12.dp)) // Rounded corners
-            .clip(RoundedCornerShape(12.dp))
-            .padding(12.dp)
-            .clickable{ onClick() },
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFEFEF))
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.person_icon),
-            contentDescription = "Contact Icon",
-            modifier = Modifier.size(24.dp)
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(text = type, fontSize = 14.sp, color = Color.Gray)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(text = type, fontSize = 15.sp, color = Color.DarkGray, fontWeight = FontWeight.Bold)
+                Text(text = name,fontSize = 12.sp )
+                if (!phone.isNullOrEmpty()) {
+                    Text(text = phone, fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit")
         }
-        Image(
-            painter = painterResource(id = R.drawable.phone_icon),
-            contentDescription = "Call Icon",
-            modifier = Modifier.size(24.dp)
-        )
     }
-    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable

@@ -6,13 +6,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.newapp.SQL.PC.PcDao
 import com.example.newapp.SQL.PC.PrimaryContact
+import com.example.newapp.SQL.SC.ScDao
+import com.example.newapp.SQL.SC.SecondaryContact
 import com.example.newapp.SQL.users.UserDao
 import com.example.newapp.SQL.users.Users
 
-@Database(entities = [Users::class, PrimaryContact::class], version = 1, exportSchema = false)
+@Database(entities = [Users::class, PrimaryContact::class, SecondaryContact::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun pContactDao(): PcDao
+    abstract fun sContactDao(): ScDao
 
     companion object {
         @Volatile
@@ -28,7 +31,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "visualimpaired"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // This will recreate tables if needed
+                .build()
                 INSTANCE = instance
                 return instance
             }
