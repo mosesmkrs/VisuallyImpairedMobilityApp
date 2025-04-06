@@ -31,7 +31,7 @@ fun Footer(navController: NavController) {
     ) {
         FooterItem("Home", R.drawable.home_icon,) { navController.navigate(Routes.homeScreen) }
         FooterItem("Navigate", R.drawable.navigate_icon) { navController.navigate(Routes.navigationPage) }
-        FooterItem("Alerts", R.drawable.alert_icon) { navController.navigate(Routes.alertsPage) }
+        FooterItem("Matatu", R.drawable.bus_icon) { navController.navigate(Routes.MatatuPage) }
         FooterItem("Settings", R.drawable.settings_icon) { navController.navigate(Routes.profilePage) }
     }
 }
