@@ -26,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,11 +37,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-
+import android.content.Intent
+import android.net.Uri
 import android.content.Context
 import android.media.AudioManager
 import android.location.LocationManager
 import android.Manifest
+import android.app.Application
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,15 +63,25 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import com.example.newapp.R
 import com.example.newapp.Routes
+import com.example.newapp.SQL.PC.PrimaryContact
+import com.example.newapp.SQL.PC.pCViewModel
+import com.example.newapp.SQL.SC.sCViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun HomeScreen(googleAuthClient: GoogleAuthClient,
-               lifecycleOwner: LifecycleOwner,
-               navController: NavController,
-               textToSpeech: TextToSpeech
+fun HomeScreen(
+    googleAuthClient: GoogleAuthClient,
+    lifecycleOwner: LifecycleOwner,
+    navController: NavController,
+    textToSpeech: TextToSpeech,
+    userId: Int
 ) {
 
     val userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
@@ -76,6 +89,16 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
     var isGpsEnabled by remember { mutableStateOf(false) }
     var ringerStatus by remember { mutableStateOf("Checking...") }
 
+    // Initialize ViewModels
+    val pCViewModel: pCViewModel = ViewModelProvider(
+        lifecycleOwner as ViewModelStoreOwner,
+        ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+    ).get(pCViewModel::class.java)
+
+    val sCViewModel: sCViewModel = ViewModelProvider(
+        lifecycleOwner as ViewModelStoreOwner,
+        ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+    ).get(sCViewModel::class.java)
 
     LaunchedEffect(Unit) {
         val message = "You are on the Home Screen. " +
@@ -85,7 +108,6 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
 
     }
-
 
     // Detect gestures (Swipe Right to go back)
     val gestureDetector = remember {
@@ -106,12 +128,39 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         })
     }
 
-
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             isGpsEnabled = checkGpsStatus(context)
+        }
+    }
+
+    suspend fun sendSOSMessage(
+        context: Context,
+        lifecycleOwner: LifecycleOwner,
+        userId: Int,
+        pCViewModel: pCViewModel,
+        sCViewModel: sCViewModel
+    ) {
+        // Retrieve contacts from the database
+        val primaryContact = lifecycleOwner.lifecycleScope.async {
+            pCViewModel.getPrimaryContact(userId)
+        }.await()
+
+        val secondaryContact = lifecycleOwner.lifecycleScope.async {
+            sCViewModel.getSecondaryContact(userId)
+        }.await()
+
+        val message = "This is an SOS emergency message. Please help!"
+        val contacts = listOfNotNull(primaryContact?.contactnumber, secondaryContact?.contactnumber)
+
+        contacts.forEach { number ->
+            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("smsto:$number")
+                putExtra("sms_body", message)
+            }
+            context.startActivity(smsIntent)
         }
     }
 
@@ -154,7 +203,7 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
                 )
             }
     )
- {
+    {
         // Top Bar with Home Title and Profile Icon
         Row(
             modifier = Modifier
@@ -199,8 +248,10 @@ fun HomeScreen(googleAuthClient: GoogleAuthClient,
         // SOS Emergency Button
         Button(
             onClick = {
-                textToSpeech.speak("Navigating to SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
-                navController.navigate(Routes.ContactFormScreen) },
+                lifecycleOwner.lifecycleScope.launch{
+                    sendSOSMessage(context, lifecycleOwner, userId, pCViewModel, sCViewModel)
+                }
+            },
             colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
@@ -281,6 +332,7 @@ fun NavigationOptionsGrid(navController: NavController) {
         }
     }
 }
+
 @Composable
 fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
     Column(

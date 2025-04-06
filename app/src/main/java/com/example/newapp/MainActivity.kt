@@ -1,5 +1,6 @@
 package com.example.newapp
 
+import android.content.Context
 import apis.GoogleAuthClient
 import android.os.Bundle
 import android.speech.SpeechRecognizer
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private lateinit var textToSpeech: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -43,7 +45,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             val navController = rememberNavController()
             googleAuthClient = GoogleAuthClient(applicationContext)
 
-            NavHost(
+            // Retrieve userId from SharedPreferences
+            val sharedPreferences = getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+            val userId = sharedPreferences.getInt("userId", -1) // Default to -1 if not found
+
+                NavHost(
                 navController = navController,
                 //startDestination = Routes.homeScreen
                startDestination = Routes.GoogleSignInScreen
@@ -53,7 +59,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         googleAuthClient,
                         lifecycleOwner = this@MainActivity,
                         navController,
-                        textToSpeech
+                        textToSpeech,
+                        userId = userId
                     )
                 }
 
