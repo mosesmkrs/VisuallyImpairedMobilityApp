@@ -542,7 +542,7 @@ private fun showConfirmationDialog(
     firstNumber: String,
     secondNumber: String?
 ) {
-    val message = "Did $firstNumber answer the call?"
+    val message = "Did $firstNumber answer the call."
     tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
 
     AlertDialog.Builder(context)
