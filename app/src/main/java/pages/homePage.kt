@@ -57,6 +57,7 @@ import coil.compose.AsyncImage
 import components.Footer
 import apis.GoogleAuthClient
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -143,26 +144,61 @@ fun HomeScreen(
         pCViewModel: pCViewModel,
         sCViewModel: sCViewModel
     ) {
-        // Retrieve contacts from the database
-        val primaryContact = lifecycleOwner.lifecycleScope.async {
-            pCViewModel.getPrimaryContact(userId)
-        }.await()
+        try {
+            // Retrieve contacts from the database
+            val primaryContact = lifecycleOwner.lifecycleScope.async {
+                pCViewModel.getPrimaryContact(userId)
+            }.await()
 
-        val secondaryContact = lifecycleOwner.lifecycleScope.async {
-            sCViewModel.getSecondaryContact(userId)
-        }.await()
+            val secondaryContact = lifecycleOwner.lifecycleScope.async {
+                sCViewModel.getSecondaryContact(userId)
+            }.await()
 
-        val message = "This is an SOS emergency message. Please help!"
-        val contacts = listOfNotNull(primaryContact?.contactnumber, secondaryContact?.contactnumber)
+            val message = "This is an SOS emergency message. Please help!"
+            val contacts = listOfNotNull(primaryContact?.contactnumber, secondaryContact?.contactnumber)
 
-        contacts.forEach { number ->
-            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
-                data = Uri.parse("smsto:$number")
-                putExtra("sms_body", message)
+            if (contacts.isEmpty()) {
+                Log.e("SOS", "No contacts found to send SOS message.")
+                return
             }
-            context.startActivity(smsIntent)
+
+            contacts.forEach { number ->
+                Log.d("SOS", "Sending message to $number")
+                val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                    data = Uri.parse("smsto:$number")
+                    putExtra("sms_body", message)
+                }
+                context.startActivity(smsIntent)
+            }
+        } catch (e: Exception) {
+            Log.e("SOS", "Error sending SOS message: ${e.message}")
         }
     }
+//suspend fun sendSOSMessage(
+//    context: Context,
+//    lifecycleOwner: LifecycleOwner,
+//    userId: Int,
+//    pCViewModel: pCViewModel,
+//    sCViewModel: sCViewModel
+//) {
+//    try {
+//        // Hardcoded contacts for testing
+//        val contacts = listOf("0793472815", "0731453371")
+//
+//        val message = "This is an SOS emergency message. Please help! Jokes..hehehe Stacey says Hi. :)"
+//
+//        contacts.forEach { number ->
+//            Log.d("SOS", "Sending message to $number")
+//            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+//                data = Uri.parse("smsto:$number")
+//                putExtra("sms_body", message)
+//            }
+//            context.startActivity(smsIntent)
+//        }
+//    } catch (e: Exception) {
+//        Log.e("SOS", "Error sending SOS message: ${e.message}")
+//    }
+//}
 
     fun checkRingerMode(context: Context): String {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -198,7 +234,10 @@ fun HomeScreen(
                     },
                     onDoubleTap = {
                         textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
-                        navController.navigate(Routes.ContactFormScreen)
+                        //navController.navigate(Routes.ContactFormScreen)
+                        lifecycleOwner.lifecycleScope.launch {
+                            sendSOSMessage(context, lifecycleOwner, userId, pCViewModel, sCViewModel)
+                        }
                     }
                 )
             }
