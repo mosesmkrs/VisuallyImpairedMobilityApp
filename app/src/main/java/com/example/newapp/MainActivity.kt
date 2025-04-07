@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
 
                 NavHost(
+
                 navController = navController,
                startDestination = Routes.GoogleSignInScreen
             ) {

@@ -83,6 +83,7 @@ import com.example.newapp.R
 import com.example.newapp.Routes
 import com.example.newapp.SQL.PC.pCViewModel
 import com.example.newapp.SQL.SC.sCViewModel
+import com.example.newapp.SQL.users.UserViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -104,7 +105,37 @@ fun HomeScreen(
     val context = LocalContext.current
     var isGpsEnabled by remember { mutableStateOf(false) }
     var ringerStatus by remember { mutableStateOf("Checking...") }
+    var actualUserId by remember { mutableStateOf(userId) }
 
+    // Get the Firebase UID from GoogleAuthClient
+    val firebaseUid = googleAuthClient.getUserId()
+
+    // Create UserViewModel to get the correct userId from the database
+    val userViewModel: UserViewModel = ViewModelProvider(
+        lifecycleOwner as ViewModelStoreOwner,
+        ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+    ).get(UserViewModel::class.java)
+
+    // Effect to retrieve the userId when Firebase UID is available
+    LaunchedEffect(firebaseUid) {
+        if (!firebaseUid.isNullOrEmpty()) {
+            try {
+                // Get the userId from the database using the Firebase UID
+                val retrievedUserId = userViewModel.getUserIDByFirebaseUUID(firebaseUid)
+                if (retrievedUserId > 0) {
+                    actualUserId = retrievedUserId
+                    Log.d("HomeScreen", "Retrieved userId: $actualUserId for Firebase UID: $firebaseUid")
+                } else {
+                    Log.e("HomeScreen", "Invalid userId retrieved: $retrievedUserId")
+                }
+            } catch (e: Exception) {
+                Log.e("HomeScreen", "Error retrieving userId: ${e.message}")
+                e.printStackTrace()
+            }
+        } else {
+            Log.e("HomeScreen", "Firebase UID is null or empty")
+        }
+    }
 
     LaunchedEffect(Unit) {
         val message = "You are on the Home Screen. " +
@@ -203,7 +234,7 @@ fun HomeScreen(
                 detectTapGestures(
                     onTap = {
                         lifecycleOwner.lifecycleScope.launch {
-                            sendSOSCall(context, userId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
+                            sendSOSCall(context, actualUserId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
                         }
                         textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
                     },
@@ -260,7 +291,7 @@ fun HomeScreen(
         Button(
             onClick = {
                 lifecycleOwner.lifecycleScope.launch{
-                    sendSOSCall(context, userId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
+                    sendSOSCall(context, actualUserId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
