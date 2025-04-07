@@ -27,6 +27,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +64,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import coil.compose.AsyncImage
 import components.Footer
 import apis.GoogleAuthClient
@@ -104,7 +109,8 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         val message = "You are on the Home Screen. " +
                 "Single tap for SOS Emergency."+
-                "Double tap for Start Navigation."
+                "Double tap for Start Navigation." +
+                "Swipe right to go back."
 
         textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
 
@@ -120,12 +126,12 @@ fun HomeScreen(
         lifecycleOwner as ViewModelStoreOwner,
         ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
     ).get(sCViewModel::class.java)
- //SMS
+    //SMS
     val callPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (!isGranted) {
-            Toast.makeText(context, "SMS permission denied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Call permission denied", Toast.LENGTH_SHORT).show()
         }
     }
     LaunchedEffect(Unit){
@@ -196,15 +202,14 @@ fun HomeScreen(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
-                        navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
+                        lifecycleOwner.lifecycleScope.launch {
+                            sendSOSCall(context, userId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
+                        }
+                        textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
                     },
                     onDoubleTap = {
-                        textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
-                        //navController.navigate(Routes.ContactFormScreen)
-                        lifecycleOwner.lifecycleScope.launch {
-                            sendSOSCall(context, userId, pCViewModel, sCViewModel)
-                        }
+                        textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
+                        navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
                     }
                 )
             }
@@ -255,7 +260,7 @@ fun HomeScreen(
         Button(
             onClick = {
                 lifecycleOwner.lifecycleScope.launch{
-                    sendSOSCall(context, userId, pCViewModel, sCViewModel)
+                    sendSOSCall(context, userId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
@@ -443,177 +448,171 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
         }
     }
 }
+
 @SuppressLint("MissingPermission")
 suspend fun sendSOSCall(
     context: Context,
     userId: Int,
     pCViewModel: pCViewModel,
-    sCViewModel: sCViewModel
+    sCViewModel: sCViewModel,
+    textToSpeech: TextToSpeech? = null,
+    googleAuthClient: GoogleAuthClient? = null
 ) {
     try {
+        // Show feedback to user
+        Toast.makeText(context, "SOS Emergency activated", Toast.LENGTH_LONG).show()
+        
         // Initialize TTS
-        val tts = TextToSpeech(context) { status ->
-            if (status != TextToSpeech.SUCCESS) {
-                Log.e("TTS", "Initialization failed")
+        val tts = if (textToSpeech != null) {
+            // Use the provided TextToSpeech instance
+            textToSpeech
+        } else {
+            // Create a new TextToSpeech instance if none was provided
+            TextToSpeech(context) { status ->
+                if (status != TextToSpeech.SUCCESS) {
+                    Log.e("TTS", "Initialization failed")
+                }
+            }.apply {
+                language = Locale.getDefault()
             }
         }
-
-        // Fetch contacts
-        val primaryContact = withContext(Dispatchers.IO) {
-            pCViewModel.getPrimaryContact(userId)
+        
+        // Wait for TTS to initialize
+        delay(500)
+        
+        // Speak the SOS activation message
+        tts.speak("SOS Emergency activated. Contacting emergency contacts now.", TextToSpeech.QUEUE_FLUSH, null, null)
+        
+        // Check call permission
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            Log.e("SOS", "Call permission not granted")
+            tts.speak("Call permission not granted. Please enable call permissions in your settings.", TextToSpeech.QUEUE_FLUSH, null, null)
+            return
         }
+
+        Log.d("SOS", "Attempting to fetch contacts for userId: $userId")
+        
+        // Debug the userId
+        if (userId <= 0) {
+            Log.e("SOS", "Invalid userId: $userId")
+            tts.speak("User ID is invalid. Please sign in again.", TextToSpeech.QUEUE_FLUSH, null, null)
+            return
+        }
+        
+        // Try to get the Firebase UID from GoogleAuthClient if available
+        val firebaseUid = googleAuthClient?.getUserId()
+        Log.d("SOS", "Firebase UID: $firebaseUid")
+        
+        // Get contacts using direct database queries for more reliability
+        val primaryContact = withContext(Dispatchers.IO) {
+            try {
+                val contact = pCViewModel.getPrimaryContact(userId)
+                Log.d("SOS", "Primary contact retrieved: ${contact?.contactnumber ?: "null"}")
+                contact
+            } catch (e: Exception) {
+                Log.e("SOS", "Error fetching primary contact: ${e.message}")
+                e.printStackTrace()
+                null
+            }
+        }
+        
         val secondaryContact = withContext(Dispatchers.IO) {
-            sCViewModel.getSecondaryContact(userId)
+            try {
+                val contact = sCViewModel.getSecondaryContact(userId)
+                Log.d("SOS", "Secondary contact retrieved: ${contact?.contactnumber ?: "null"}")
+                contact
+            } catch (e: Exception) {
+                Log.e("SOS", "Error fetching secondary contact: ${e.message}")
+                e.printStackTrace()
+                null
+            }
         }
 
         val firstNumber = primaryContact?.contactnumber
         val secondNumber = secondaryContact?.contactnumber
 
-        if (firstNumber.isNullOrEmpty()) {
-            Log.e("SOS", "No primary contact found.")
+        if (firstNumber.isNullOrEmpty() && secondNumber.isNullOrEmpty()) {
+            Log.e("SOS", "No emergency contacts found")
+            tts.speak("No emergency contacts found. Please add emergency contacts in your profile.", TextToSpeech.QUEUE_FLUSH, null, null)
             return
         }
 
-        // Make the first call
-        val callIntent = Intent(Intent.ACTION_CALL).apply {
-            data = Uri.parse("tel:$firstNumber")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(callIntent)
-
-        // Wait a bit before asking
-        delay(15_000)
-
-        // Speak the prompt
-        val message = "Did $firstNumber answer the call? Say yes or no."
-        tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
-
-        // Start speech recognizer
-        withContext(Dispatchers.Main) {
-            val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            }
-
-            recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onResults(results: Bundle) {
-                    val spoken = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.lowercase(Locale.ROOT)
-                    if (spoken?.contains("no") == true && !secondNumber.isNullOrEmpty()) {
+        // Log contacts for debugging
+        Log.d("SOS", "Primary contact: $firstNumber")
+        Log.d("SOS", "Secondary contact: $secondNumber")
+        
+        // Try primary contact first if available
+        if (!firstNumber.isNullOrEmpty()) {
+            tts.speak("Calling primary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+            delay(1000) // Wait for TTS to complete
+            
+            try {
+                val callIntent = Intent(Intent.ACTION_CALL).apply {
+                    data = Uri.parse("tel:$firstNumber")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(callIntent)
+                Log.d("SOS", "Call initiated to primary contact: $firstNumber")
+                
+                // Wait for a reasonable time for the call to connect and potentially complete
+                delay(30000)
+                
+                // After the delay, try the secondary contact if available
+                if (!secondNumber.isNullOrEmpty()) {
+                    tts.speak("Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+                    delay(1000) // Wait for TTS to complete
+                    
+                    val secondIntent = Intent(Intent.ACTION_CALL).apply {
+                        data = Uri.parse("tel:$secondNumber")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(secondIntent)
+                    Log.d("SOS", "Call initiated to secondary contact: $secondNumber")
+                }
+            } catch (e: Exception) {
+                Log.e("SOS", "Error making call to primary contact: ${e.message}")
+                e.printStackTrace()
+                
+                // If primary call fails, try secondary
+                if (!secondNumber.isNullOrEmpty()) {
+                    tts.speak("Failed to call primary contact. Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+                    delay(1000) // Wait for TTS to complete
+                    
+                    try {
                         val secondIntent = Intent(Intent.ACTION_CALL).apply {
                             data = Uri.parse("tel:$secondNumber")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
                         context.startActivity(secondIntent)
+                        Log.d("SOS", "Call initiated to secondary contact: $secondNumber")
+                    } catch (e: Exception) {
+                        Log.e("SOS", "Error making call to secondary contact: ${e.message}")
+                        e.printStackTrace()
+                        tts.speak("Failed to call emergency contacts. Please try again or call emergency services directly.", TextToSpeech.QUEUE_FLUSH, null, null)
                     }
                 }
-
-                override fun onError(error: Int) {
-                    // Fall back to dialog if voice fails
-                    showConfirmationDialog(context, tts, firstNumber, secondNumber)
-                }
-
-                override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onPartialResults(partialResults: Bundle?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-
-            recognizer.startListening(intent)
-
-            // Fallback in case user doesn’t say anything
-            delay(10_000)
-            recognizer.stopListening()
-            recognizer.destroy()
-        }
-
-    } catch (e: Exception) {
-        Log.e("SOS", "Error during SOS call: ${e.message}")
-    }
-}
-
-// Fallback dialog if voice input fails
-private fun showConfirmationDialog(
-    context: Context,
-    tts: TextToSpeech,
-    firstNumber: String,
-    secondNumber: String?
-) {
-    val message = "Did $firstNumber answer the call? Say yes or no."
-    tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
-
-    AlertDialog.Builder(context)
-        .setTitle("Call Check")
-        .setMessage(message)
-        .setPositiveButton("Yes") { _, _ -> }
-        .setNegativeButton("No") { _, _ ->
-            secondNumber?.let {
+            }
+        } else if (!secondNumber.isNullOrEmpty()) {
+            // If no primary contact but secondary is available
+            tts.speak("No primary contact found. Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+            delay(1000) // Wait for TTS to complete
+            
+            try {
                 val secondIntent = Intent(Intent.ACTION_CALL).apply {
-                    data = Uri.parse("tel:$it")
+                    data = Uri.parse("tel:$secondNumber")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(secondIntent)
+                Log.d("SOS", "Call initiated to secondary contact: $secondNumber")
+            } catch (e: Exception) {
+                Log.e("SOS", "Error making call to secondary contact: ${e.message}")
+                e.printStackTrace()
+                tts.speak("Failed to call emergency contacts. Please try again or call emergency services directly.", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
-        .setCancelable(false)
-        .show()
+    } catch (e: Exception) {
+        Log.e("SOS", "Error during SOS call: ${e.message}")
+        e.printStackTrace()
+        Toast.makeText(context, "Error during SOS: ${e.message}", Toast.LENGTH_LONG).show()
+    }
 }
-
-//@SuppressLint("MissingPermission")
-//suspend fun sendSOSCall(
-//    context: Context,
-//    userId: Int,
-//    pCViewModel: pCViewModel,
-//    sCViewModel: sCViewModel
-//) {
-//    val contacts = listOf("0793472815", "0707471132")
-//
-//    if (contacts.isEmpty()) {
-//        Log.e("SOS", "No contacts found.")
-//        return
-//    }
-//
-//    try {
-//        val firstNumber = contacts[0]
-//        val secondNumber = contacts.getOrNull(1)
-//
-//        // Call first number
-//        val callIntent = Intent(Intent.ACTION_CALL).apply {
-//            data = Uri.parse("tel:$firstNumber")
-//            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//        }
-//        context.startActivity(callIntent)
-//
-//        // Wait a bit to allow the user to return from the call
-//        delay(15_000) // optional wait time
-//
-//        // Ask the user: did they answer?
-//        withContext(Dispatchers.Main) {
-//            AlertDialog.Builder(context)
-//                .setTitle("Call Check")
-//                .setMessage("Did $firstNumber answer the call?")
-//                .setPositiveButton("Yes") { _, _ ->
-//                    // Do nothing – call was successful
-//                }
-//                .setNegativeButton("No") { _, _ ->
-//                    // Make second call
-//                    secondNumber?.let { number ->
-//                        val secondIntent = Intent(Intent.ACTION_CALL).apply {
-//                            data = Uri.parse("tel:$number")
-//                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//                        }
-//                        context.startActivity(secondIntent)
-//                    }
-//                }
-//                .setCancelable(false)
-//                .show()
-//        }
-//
-//    } catch (e: Exception) {
-//        Log.e("SOS", "Error during SOS call: ${e.message}")
-//    }
-//}
-

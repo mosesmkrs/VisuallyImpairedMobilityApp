@@ -2,7 +2,6 @@ package pages
 
 import android.app.Activity
 import android.app.Application
-import android.content.IntentSender
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,7 +41,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import apis.GoogleAuthClient
 import com.example.newapp.R

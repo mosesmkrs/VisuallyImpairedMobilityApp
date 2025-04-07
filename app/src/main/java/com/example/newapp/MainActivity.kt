@@ -7,11 +7,18 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
+import com.example.newapp.SQL.users.UserViewModel
 import pages.AlertsPage
 import pages.ContactFormScreen
 import pages.DatabaseViewerScreen
@@ -45,14 +52,39 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             val navController = rememberNavController()
             googleAuthClient = GoogleAuthClient(applicationContext)
 
-            // Retrieve userId from SharedPreferences
-            val sharedPreferences = getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
-            val userId = sharedPreferences.getInt("userId", -1) // Default to -1 if not found
+            // Create a UserViewModel to access the database
+            val userViewModel = ViewModelProvider(
+                this,
+                ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+            ).get(UserViewModel::class.java)
+            
+            // State to hold the userId
+            var userId by remember { mutableStateOf(-1) }
+            
+            // Get the Firebase UID from GoogleAuthClient
+            val firebaseUid = googleAuthClient.getUserId()
+            
+            // Effect to retrieve the userId when Firebase UID is available
+            LaunchedEffect(firebaseUid) {
+                if (!firebaseUid.isNullOrEmpty()) {
+                    // Get the userId from the database using the Firebase UID
+                    val retrievedUserId = userViewModel.getUserIDByFirebaseUUID(firebaseUid)
+                    userId = retrievedUserId
+                    
+                    // Log the retrieved userId for debugging
+                    android.util.Log.d("MainActivity", "Retrieved userId: $userId for Firebase UID: $firebaseUid")
+                    
+                    // Save the userId to SharedPreferences for future use
+                    val sharedPreferences = getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+                    sharedPreferences.edit().putInt("userId", userId).apply()
+                } else {
+                    android.util.Log.e("MainActivity", "Firebase UID is null or empty")
+                }
+            }
 
                 NavHost(
                 navController = navController,
-                startDestination = Routes.homeScreen
-              // startDestination = Routes.GoogleSignInScreen
+               startDestination = Routes.GoogleSignInScreen
             ) {
                 composable(Routes.homeScreen) {
                     HomeScreen(
@@ -119,4 +151,3 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         ArcGISEnvironment.apiKey = ApiKey.create(arcgisKey)
     }
 }
-
