@@ -67,10 +67,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-//    implementation(libs.firebase.database)
-//    implementation(libs.play.services.vision.common)
-//    implementation(libs.androidx.storage)
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-database-ktx:20.2.1")
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("com.google.android.gms:play-services-vision:20.1.3")
     implementation("androidx.security:security-crypto:1.0.0")
     
