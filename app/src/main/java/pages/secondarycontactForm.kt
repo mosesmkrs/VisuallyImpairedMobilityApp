@@ -45,12 +45,13 @@ import com.example.newapp.SQL.SC.SecondaryContact
 import com.example.newapp.SQL.SC.sCViewModel
 import com.example.newapp.SQL.users.UserViewModel
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun SecondaryContactForm(navController: NavController) {
     val context = LocalContext.current
-    val tts = remember { TextToSpeech(context) { } }
+    var tts = remember { TextToSpeech(context) { } }
     val scope = rememberCoroutineScope()
     var secondaryName by remember { mutableStateOf("") }
     var secondaryPhone by remember { mutableStateOf("") }
@@ -112,6 +113,23 @@ fun SecondaryContactForm(navController: NavController) {
 
     LaunchedEffect(Unit) {
         permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+    }
+    tts = remember {
+        TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts.language = Locale.US
+                tts.speak("You are on the Navigation Page." +
+                        "Double tap on the top of the screen to enter your destination.", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+
+        }
+    }
+    // Cleanup TTS when the screen is removed
+    DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
+        }
     }
 
 
@@ -226,7 +244,7 @@ fun SecondaryContactForm(navController: NavController) {
             if (it.moveToFirst()) {
                 val phoneNumber = it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
                 secondaryPhone = phoneNumber.replace("\\s".toRegex(), "")
-                tts.speak("Phone number for $name is $secondaryPhone", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts.speak("Phone number for $name", TextToSpeech.QUEUE_FLUSH, null, null)
             } else {
                 tts.speak("No phone number found for $name", TextToSpeech.QUEUE_FLUSH, null, null)
             }
@@ -260,17 +278,50 @@ fun SecondaryContactForm(navController: NavController) {
         speechRecognizer.startListening(intent)
     }
 
+    fun startPhoneVoiceInput() {
+        tts.speak("Please say the phone number", TextToSpeech.QUEUE_FLUSH, null, null)
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the phone number")
+        }
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    // Process the spoken phone number - remove spaces and non-numeric characters
+                    val phoneNumber = matches[0].replace(Regex("[^0-9]"), "")
+                    secondaryPhone = phoneNumber
+                    tts.speak("Phone number set to $phoneNumber", TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+            }
+            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        speechRecognizer.startListening(intent)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .statusBarsPadding()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { startVoiceInput() }, // 👈 Single Tap triggers voice input
-                    onDoubleTap = { submitContact() },
+                    onTap = {
+                       submitContact()
+                    },
+                    onDoubleTap = {
+                        tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
+                        startVoiceInput()
+                    }
                 )
-            },
+            }
+            .statusBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
@@ -278,8 +329,19 @@ fun SecondaryContactForm(navController: NavController) {
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
+        
+//        // Instructions for visually impaired users
+//        Text(
+//            text = "Double tap on any field to use voice input",
+//            fontSize = 16.sp,
+//            color = Color.Gray,
+//            textAlign = TextAlign.Center,
+//            modifier = Modifier.fillMaxWidth()
+//        )
+//
         Text("Secondary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = secondaryName,
@@ -289,12 +351,8 @@ fun SecondaryContactForm(navController: NavController) {
             },
             label = { Text("Full Name") },
             isError = secondaryNameError != null,
-            trailingIcon = {
-                IconButton(onClick = { startVoiceInput() }) {
-                    Icon(Icons.Filled.Mic, contentDescription = "Voice Input")
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
         )
         if (secondaryNameError != null) {
             Text(secondaryNameError!!, color = MaterialTheme.colorScheme.error)
@@ -322,7 +380,8 @@ fun SecondaryContactForm(navController: NavController) {
             label = { Text("Phone Number") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             isError = secondaryPhoneError != null,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
         )
         if (secondaryPhoneError != null) {
             Text(secondaryPhoneError!!, color = MaterialTheme.colorScheme.error)

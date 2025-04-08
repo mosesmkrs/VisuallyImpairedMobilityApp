@@ -135,50 +135,130 @@ fun MatatuPage(navController: NavController) {
         if (!spokenText.isNullOrEmpty()) {
             destinationText = spokenText
             tts!!.speak("You entered $spokenText", TextToSpeech.QUEUE_FLUSH, null, null)
-            
+
             // Get location suggestions based on spoken text
             coroutineScope.launch {
                 val suggestions = gtfsDataHandler.getSuggestions(spokenText)
                 locationSuggestions = suggestions
                 showSuggestions = suggestions.isNotEmpty()
-                
+
                 // Announce the number of suggestions found
                 if (suggestions.isNotEmpty()) {
-                    tts!!.speak("Found ${suggestions.size} suggestions. Double tap on a suggestion to select it.", 
+                    tts!!.speak("Found ${suggestions.size} suggestions. Double tap on a suggestion to select it.",
                         TextToSpeech.QUEUE_ADD, null, null)
                 } else {
-                    tts!!.speak("No suggestions found for $spokenText", 
+                    tts!!.speak("No suggestions found for $spokenText",
                         TextToSpeech.QUEUE_ADD, null, null)
                 }
             }
         }
     }
-    val gestureDetector = Modifier
-        .pointerInput(Unit) {
-        detectHorizontalDragGestures { _, dragAmount ->
-            if (dragAmount > 100) { // Swipe Right: Move to the next tab
-                selectedTab = when (selectedTab) {
-                    0 -> 1 // Maps → History
-                    1 -> 2 // History → Saved Sites
-                    else -> 2 // Stay on Saved Sites (no further right navigation)
-                }
-            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
-                selectedTab = when (selectedTab) {
-                    2 -> 1 // Saved Sites → History
-                    1 -> 0 // History → Maps
-                    else -> 0 // Stay on Maps (no further left navigation)
-                }
-            }
-
-            // Announce the switched tab
-            val tabName = when (selectedTab) {
-                0 -> "Maps"
-                1 -> "History"
-                else -> "Saved Sites"
-            }
-            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
-        }
-    }
+//    val voiceInputLauncher = rememberLauncherForActivityResult(
+//        contract = ActivityResultContracts.StartActivityForResult()
+//    ) { result ->
+//        val data: Intent? = result.data
+//        val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
+//        if (!spokenText.isNullOrEmpty()) {
+//            destinationText = spokenText
+//            tts!!.speak("You entered $spokenText. Finding directions now.", TextToSpeech.QUEUE_FLUSH, null, null)
+//
+//            // Get location suggestions based on spoken text
+//            coroutineScope.launch {
+//                val suggestions = gtfsDataHandler.getSuggestions(spokenText)
+//                locationSuggestions = suggestions
+//                showSuggestions = suggestions.isNotEmpty()
+//
+//                if (suggestions.isNotEmpty()) {
+//                    // Use the first suggestion automatically
+//                    val firstSuggestion = suggestions[0]
+//                    tts!!.speak("Using ${firstSuggestion.name} as your destination.", TextToSpeech.QUEUE_ADD, null, null)
+//
+//                    // Create a GeoPoint from the first suggestion
+//                    val destinationPoint = GeoPoint(firstSuggestion.latitude, firstSuggestion.longitude)
+//
+//                    // Automatically submit the destination if user location is available
+//                    if (userLocation != null) {
+//                        destinationLocation = destinationPoint
+//
+//                        // First, try to find the nearest matatu stop that serves this destination
+//                        val result = matatuRouteHandler.findNearestStopToDestination(
+//                            userLocation!!, destinationPoint
+//                        )
+//
+//                        if (result != null) {
+//                            nearestStopResult = result
+//                            showingDirectionsToStop = true
+//                            routePoints = emptyList() // Clear any existing direct route
+//
+//                            // Get walking directions to the nearest stop
+//                            val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
+//                            fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints, distance, duration, directions ->
+//                                walkingRouteToStop = newRoutePoints
+//                                walkingDirections = directions
+//                                walkingDistance = distance
+//                                walkingDuration = duration
+//                                showDirectionsPanel = true
+//                                currentDirectionIndex = 0
+//
+//                                // Announce the result to the user
+//                                val announcement = "Found a matatu route to your destination. " +
+//                                        "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
+//                                        "${result.route.name} to ${result.destinationStop.name}."
+//
+//                                tts?.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
+//
+//                                // After initial announcement, read the full route summary
+//                                isReadingDirections = true
+//                                readRouteSummary(tts!!, directions)
+//                            }
+//                        } else {
+//                            // If no matatu route is found, just show direct route
+//                            showingDirectionsToStop = false
+//                            nearestStopResult = null
+//                            walkingRouteToStop = emptyList()
+//                            fetchRoutes(userLocation!!, destinationPoint) { newRoutePoints, instructions ->
+//                                routePoints = newRoutePoints
+//                                tts?.speak("Showing direct route to destination. No matatu routes found.",
+//                                    TextToSpeech.QUEUE_FLUSH, null, null)
+//                            }
+//                        }
+//                    } else {
+//                        tts!!.speak("Your location is not available. Please enable location services.",
+//                            TextToSpeech.QUEUE_ADD, null, null)
+//                    }
+//                } else {
+//                    tts!!.speak("No suggestions found for $spokenText. Please try again with a different destination.",
+//                        TextToSpeech.QUEUE_ADD, null, null)
+//                }
+//            }
+//        }
+//    }
+//    val gestureDetector = Modifier
+//        .pointerInput(Unit) {
+//        detectHorizontalDragGestures { _, dragAmount ->
+//            if (dragAmount > 100) { // Swipe Right: Move to the next tab
+//                selectedTab = when (selectedTab) {
+//                    0 -> 1 // Maps → History
+//                    1 -> 2 // History → Saved Sites
+//                    else -> 2 // Stay on Saved Sites (no further right navigation)
+//                }
+//            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
+//                selectedTab = when (selectedTab) {
+//                    2 -> 1 // Saved Sites → History
+//                    1 -> 0 // History → Maps
+//                    else -> 0 // Stay on Maps (no further left navigation)
+//                }
+//            }
+//
+//            // Announce the switched tab
+//            val tabName = when (selectedTab) {
+//                0 -> "Maps"
+//                1 -> "History"
+//                else -> "Saved Sites"
+//            }
+//            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
+//        }
+//    }
 
 
 
@@ -361,33 +441,33 @@ fun MatatuPage(navController: NavController) {
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-
-        // Icon Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .zIndex(1f),
-            horizontalArrangement = Arrangement.SpaceAround
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.map_icon),
-                contentDescription = "Map",
-                tint = Color.Black
-            )
-            Icon(
-                painter = painterResource(id = R.drawable.history_icon),
-                contentDescription = "History",
-                tint = Color.Black
-            )
-            Icon(
-                painter = painterResource(id = R.drawable.bookmark_icon),
-                contentDescription = "Bookmarks",
-                tint = Color.Black
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
+//
+//        // Icon Row
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(horizontal = 16.dp)
+//                .zIndex(1f),
+//            horizontalArrangement = Arrangement.SpaceAround
+//        ) {
+//            Icon(
+//                painter = painterResource(id = R.drawable.map_icon),
+//                contentDescription = "Map",
+//                tint = Color.Black
+//            )
+//            Icon(
+//                painter = painterResource(id = R.drawable.history_icon),
+//                contentDescription = "History",
+//                tint = Color.Black
+//            )
+//            Icon(
+//                painter = painterResource(id = R.drawable.bookmark_icon),
+//                contentDescription = "Bookmarks",
+//                tint = Color.Black
+//            )
+//        }
+//
+//        Spacer(modifier = Modifier.height(12.dp))
 
         // Show error message if any
         errorMessage?.let {
@@ -445,17 +525,17 @@ fun MatatuPage(navController: NavController) {
                         fetchCoordinate(destinationText, context) { location ->
                             if (location != null && userLocation != null) {
                                 destinationLocation = location
-                                
+
                                 // First, try to find the nearest matatu stop that serves this destination
                                 val result = matatuRouteHandler.findNearestStopToDestination(
                                     userLocation!!, location
                                 )
-                                
+
                                 if (result != null) {
                                     nearestStopResult = result
                                     showingDirectionsToStop = true
                                     routePoints = emptyList() // Clear any existing direct route
-                                    
+
                                     // Get walking directions to the nearest stop
                                     val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
                                     fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints, distance, duration, directions ->
@@ -465,14 +545,14 @@ fun MatatuPage(navController: NavController) {
                                         walkingDuration = duration
                                         showDirectionsPanel = true
                                         currentDirectionIndex = 0
-                                        
+
                                         // Announce the result to the user
                                         val announcement = "Found a matatu route to your destination. " +
                                             "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
                                             "${result.route.name} to ${result.destinationStop.name}."
-                                        
+
                                         tts?.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                        
+
                                         // After initial announcement, read the full route summary
                                         isReadingDirections = true
                                         readRouteSummary(tts!!, directions)
@@ -484,7 +564,7 @@ fun MatatuPage(navController: NavController) {
                                     walkingRouteToStop = emptyList()
                                     fetchRoutes(userLocation!!, location) { newRoutePoints, instructions ->
                                         routePoints = newRoutePoints
-                                        tts?.speak("Showing direct route to destination. No matatu routes found.", 
+                                        tts?.speak("Showing direct route to destination. No matatu routes found.",
                                             TextToSpeech.QUEUE_FLUSH, null, null)
                                     }
                                 }
@@ -499,7 +579,7 @@ fun MatatuPage(navController: NavController) {
                 }
             }
         )
-        
+
         // Debug text to show suggestion state
         Text(
             text = "Suggestions: ${if (showSuggestions) "Visible" else "Hidden"} (${locationSuggestions.size} items)",
@@ -507,7 +587,7 @@ fun MatatuPage(navController: NavController) {
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
-        
+
         // Suggestions dropdown
         if (showSuggestions) {
             Log.d("MatatuPage", "Rendering suggestions dropdown with ${locationSuggestions.size} items")
@@ -537,23 +617,23 @@ fun MatatuPage(navController: NavController) {
                                 onSuggestionSelected = { selectedSuggestion ->
                                     destinationText = selectedSuggestion.name
                                     showSuggestions = false
-                                    
+
                                     // If we have coordinates for this suggestion, use them directly
                                     if (selectedSuggestion.lat != null && selectedSuggestion.lon != null) {
                                         val location = GeoPoint(selectedSuggestion.lat, selectedSuggestion.lon)
                                         destinationLocation = location
-                                        
+
                                         if (userLocation != null) {
                                             // First, try to find the nearest matatu stop that serves this destination
                                             val result = matatuRouteHandler.findNearestStopToDestination(
                                                 userLocation!!, location
                                             )
-                                            
+
                                             if (result != null) {
                                                 nearestStopResult = result
                                                 showingDirectionsToStop = true
                                                 routePoints = emptyList() // Clear any existing direct route
-                                                
+
                                                 // Get walking directions to the nearest stop
                                                 val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
                                                 fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints, distance, duration, directions ->
@@ -563,14 +643,14 @@ fun MatatuPage(navController: NavController) {
                                                     walkingDuration = duration
                                                     showDirectionsPanel = true
                                                     currentDirectionIndex = 0
-                                                    
+
                                                     // Announce the result to the user
                                                     val announcement = "Found a matatu route to your destination. " +
                                                         "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
                                                         "${result.route.name} to ${result.destinationStop.name}."
-                                                    
+
                                                     tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                                    
+
                                                     // After initial announcement, read the full route summary
                                                     isReadingDirections = true
                                                     readRouteSummary(tts!!, directions)
@@ -582,12 +662,12 @@ fun MatatuPage(navController: NavController) {
                                                 walkingRouteToStop = emptyList()
                                                 fetchRoutes(userLocation!!, location) { newRoutePoints, instructions ->
                                                     routePoints = newRoutePoints
-                                                    tts!!.speak("Showing direct route to destination. No matatu routes found.", 
+                                                    tts!!.speak("Showing direct route to destination. No matatu routes found.",
                                                         TextToSpeech.QUEUE_FLUSH, null, null)
                                                 }
                                             }
                                         }
-                                        
+
                                     } else {
                                         // Otherwise, geocode the name
                                         fetchCoordinate(selectedSuggestion.name, context) { location ->
@@ -598,12 +678,12 @@ fun MatatuPage(navController: NavController) {
                                                     val result = matatuRouteHandler.findNearestStopToDestination(
                                                         userLocation!!, location
                                                     )
-                                                    
+
                                                     if (result != null) {
                                                         nearestStopResult = result
                                                         showingDirectionsToStop = true
                                                         routePoints = emptyList() // Clear any existing direct route
-                                                        
+
                                                         // Get walking directions to the nearest stop
                                                         val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
                                                         fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints, distance, duration, directions ->
@@ -613,14 +693,14 @@ fun MatatuPage(navController: NavController) {
                                                             walkingDuration = duration
                                                             showDirectionsPanel = true
                                                             currentDirectionIndex = 0
-                                                            
+
                                                             // Announce the result to the user
                                                             val announcement = "Found a matatu route to your destination. " +
                                                                 "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
                                                                 "${result.route.name} to ${result.destinationStop.name}."
-                                                            
+
                                                             tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                                            
+
                                                             // After initial announcement, read the full route summary
                                                             isReadingDirections = true
                                                             readRouteSummary(tts!!, directions)
@@ -632,7 +712,7 @@ fun MatatuPage(navController: NavController) {
                                                         walkingRouteToStop = emptyList()
                                                         fetchRoutes(userLocation!!, location) { newRoutePoints, instructions ->
                                                             routePoints = newRoutePoints
-                                                            tts!!.speak("Showing direct route to destination. No matatu routes found.", 
+                                                            tts!!.speak("Showing direct route to destination. No matatu routes found.",
                                                                 TextToSpeech.QUEUE_FLUSH, null, null)
                                                         }
                                                     }
@@ -666,14 +746,14 @@ fun MatatuPage(navController: NavController) {
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    
+
                     Text(
                         text = "Distance: $walkingDistance • Duration: $walkingDuration",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-                    
+
                     // Directions list
                     LazyColumn(
                         modifier = Modifier
@@ -691,7 +771,7 @@ fun MatatuPage(navController: NavController) {
                             )
                         }
                     }
-                    
+
                     // Navigation controls
                     Row(
                         modifier = Modifier
@@ -710,7 +790,7 @@ fun MatatuPage(navController: NavController) {
                         ) {
                             Text("Previous")
                         }
-                        
+
                         Button(
                             onClick = {
                                 if (currentDirectionIndex < walkingDirections.size - 1) {
@@ -723,7 +803,7 @@ fun MatatuPage(navController: NavController) {
                             Text("Next")
                         }
                     }
-                    
+
                     // Option buttons
                     Row(
                         modifier = Modifier
@@ -741,7 +821,7 @@ fun MatatuPage(navController: NavController) {
                         ) {
                             Text("Read All")
                         }
-                        
+
                         Button(
                             onClick = {
                                 // Toggle directions panel
@@ -754,7 +834,7 @@ fun MatatuPage(navController: NavController) {
                 }
             }
         }
-        
+
         //mapview
         Box(modifier = Modifier
             .fillMaxSize()
@@ -788,11 +868,11 @@ fun MatatuPage(navController: NavController) {
                         }
                         mapView.overlays.add(destinationMarker)
                     }
-                    
+
                     // If we're showing directions to a matatu stop
                     if (showingDirectionsToStop && nearestStopResult != null) {
                         Log.d("MatatuPage", "Showing matatu route directions")
-                        
+
                         // Add marker for the nearest matatu stop
                         val nearestStop = nearestStopResult!!.nearbyStop
                         val nearestStopLocation = GeoPoint(nearestStop.latitude, nearestStop.longitude)
@@ -809,7 +889,7 @@ fun MatatuPage(navController: NavController) {
                             }
                         }
                         mapView.overlays.add(nearestStopMarker)
-                        
+
                         // Add marker for the destination matatu stop
                         val destStop = nearestStopResult!!.destinationStop
                         val destStopLocation = GeoPoint(destStop.latitude, destStop.longitude)
@@ -825,7 +905,7 @@ fun MatatuPage(navController: NavController) {
                             }
                         }
                         mapView.overlays.add(destStopMarker)
-                        
+
                         // Show walking route to the nearest stop
                         if (walkingRouteToStop.isNotEmpty()) {
                             Log.d("MatatuPage", "Drawing walking route with ${walkingRouteToStop.size} points")
@@ -838,28 +918,28 @@ fun MatatuPage(navController: NavController) {
                         } else {
                             Log.d("MatatuPage", "No walking route points available")
                         }
-                        
+
                         // Show matatu route using the actual route path
                         val route = nearestStopResult!!.route
                         Log.d("MatatuPage", "Route: ${route.name}, Stops: ${route.stops.size}, Path points: ${route.routePath.size}")
-                        
+
                         // Create a separate polyline for the matatu route
                         val matatuRoutePoints = mutableListOf<GeoPoint>()
-                        
+
                         // Always include the nearest stop and destination stop
                         matatuRoutePoints.add(nearestStopLocation)
-                        
+
                         // Check if we have a route path
                         if (route.routePath.isNotEmpty()) {
                             Log.d("MatatuPage", "Using route path with ${route.routePath.size} points")
-                            
+
                             // Get the indices of stops in the route
                             val routeStopIds = route.stops
                             val nearestStopIndex = routeStopIds.indexOf(nearestStop.id)
                             val destStopIndex = routeStopIds.indexOf(destStop.id)
-                            
+
                             Log.d("MatatuPage", "Stop indices: nearest=${nearestStopIndex}, dest=${destStopIndex}")
-                            
+
                             // If both stops are on the route
                             if (nearestStopIndex != -1 && destStopIndex != -1) {
                                 // Add all stops between the nearest and destination stops
@@ -868,9 +948,9 @@ fun MatatuPage(navController: NavController) {
                                 } else {
                                     routeStopIds.subList(destStopIndex + 1, nearestStopIndex).reversed()
                                 }
-                                
+
                                 Log.d("MatatuPage", "Stops between: ${stopsBetween.size}")
-                                
+
                                 // Add intermediate stops to the route
                                 if (stopsBetween.isEmpty()) {
                                     Log.d("MatatuPage", "No intermediate stops, creating a realistic route")
@@ -879,7 +959,7 @@ fun MatatuPage(navController: NavController) {
                                     val start = matatuRoutePoints.first() // Save the nearest stop
                                     matatuRoutePoints.clear()
                                     matatuRoutePoints.add(start) // Add back the nearest stop
-                                    
+
                                     // Create a realistic path with multiple points
                                     createRealisticRoutePath(matatuRoutePoints, nearestStopLocation, destStopLocation)
                                 } else {
@@ -893,25 +973,25 @@ fun MatatuPage(navController: NavController) {
                                             Log.d("MatatuPage", "Added intermediate stop: ${stop.name}")
                                         }
                                     }
-                                    
+
                                     // Add intermediate points between stops for a smoother route
                                     val smoothedRoutePoints = mutableListOf<GeoPoint>()
                                     for (i in 0 until matatuRoutePoints.size - 1) {
                                         val start = matatuRoutePoints[i]
                                         val end = matatuRoutePoints[i + 1]
-                                        
+
                                         smoothedRoutePoints.add(start)
-                                        
+
                                         // Add points between each stop
                                         addIntermediatePointsBetweenStops(smoothedRoutePoints, start, end)
                                     }
-                                    
+
                                     // Add the final point
                                     smoothedRoutePoints.add(matatuRoutePoints.last())
                                     matatuRoutePoints.clear()
                                     matatuRoutePoints.addAll(smoothedRoutePoints)
                                 }
-                                
+
                                 Log.d("MatatuPage", "Created smoothed route with ${matatuRoutePoints.size} points")
                             } else {
                                 Log.d("MatatuPage", "One or both stops not found on route, using fallback")
@@ -923,10 +1003,10 @@ fun MatatuPage(navController: NavController) {
                             // Fallback: create a realistic route path
                             createRealisticRoutePath(matatuRoutePoints, nearestStopLocation, destStopLocation)
                         }
-                        
+
                         // First add the destination stop
                         matatuRoutePoints.add(destStopLocation)
-                        
+
                         // Then add a walking route from the destination stop to the actual destination
                         if (destinationLocation != null && !destStopLocation.equals(destinationLocation)) {
                             Log.d("MatatuPage", "Adding walking path from destination stop to actual destination")
@@ -937,14 +1017,14 @@ fun MatatuPage(navController: NavController) {
                             // Add the actual destination
                             matatuRoutePoints.add(destinationLocation!!)
                         }
-                        
+
                         Log.d("MatatuPage", "Final matatu route has ${matatuRoutePoints.size} points")
-                        
+
                         // Split the route into matatu route and final walking segment if needed
                         if (destinationLocation != null && !destStopLocation.equals(destinationLocation)) {
                             // Find the index where the destination stop is in the route points
                             val destStopIndex = matatuRoutePoints.indexOfFirst { it.equals(destStopLocation) }
-                            
+
                             if (destStopIndex != -1 && destStopIndex < matatuRoutePoints.size - 1) {
                                 // Create the matatu route polyline (up to the destination stop)
                                 val matatuSegmentPoints = matatuRoutePoints.subList(0, destStopIndex + 1)
@@ -954,7 +1034,7 @@ fun MatatuPage(navController: NavController) {
                                     width = 5f
                                 }
                                 mapView.overlays.add(matatuPolyline)
-                                
+
                                 // Create the final walking segment polyline (from destination stop to actual destination)
                                 val walkingSegmentPoints = matatuRoutePoints.subList(destStopIndex, matatuRoutePoints.size)
                                 val finalWalkingPolyline = Polyline().apply {
@@ -963,7 +1043,7 @@ fun MatatuPage(navController: NavController) {
                                     width = 5f
                                 }
                                 mapView.overlays.add(finalWalkingPolyline)
-                                
+
                                 Log.d("MatatuPage", "Created split route: ${matatuSegmentPoints.size} points for matatu, ${walkingSegmentPoints.size} points for final walking")
                             } else {
                                 // Fallback to showing the whole route in one color
@@ -983,7 +1063,7 @@ fun MatatuPage(navController: NavController) {
                             }
                             mapView.overlays.add(matatuPolyline)
                         }
-                        
+
                         // Add route information text to the map
                         val routeInfoMarker = Marker(mapView).apply {
                             position = GeoPoint(
@@ -994,7 +1074,7 @@ fun MatatuPage(navController: NavController) {
                             snippet = "From ${nearestStop.name} to ${destStop.name}"
                         }
                         mapView.overlays.add(routeInfoMarker)
-                    } 
+                    }
                     // Show direct route if not showing matatu directions
                     else if (routePoints.isNotEmpty()) {
                         val polyline = Polyline().apply {
@@ -1046,7 +1126,7 @@ fun SuggestionItem(
         apis.LocationType.STOP -> "Stop"
         apis.LocationType.ROUTE -> "Route"
     }
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1061,7 +1141,7 @@ fun SuggestionItem(
                     },
                     onTap = {
                         // Speak the suggestion when tapped once
-                        tts?.speak("${suggestion.name}, $locationTypeText", 
+                        tts?.speak("${suggestion.name}, $locationTypeText",
                             TextToSpeech.QUEUE_FLUSH, null, null)
                     }
                 )
@@ -1108,54 +1188,54 @@ fun fetchCoordinate(destination: String, context: Context, onResult: (GeoPoint?)
  */
 fun createRealisticRoutePath(routePoints: MutableList<GeoPoint>, start: GeoPoint, end: GeoPoint) {
     Log.d("MatatuPage", "Creating realistic route path from ${start.latitude},${start.longitude} to ${end.latitude},${end.longitude}")
-    
+
     // Calculate the direct distance between start and end
     val directDistance = calculateDistances(start, end)
-    
+
     // Create a more complex path with multiple segments
     // First, create 2-3 major waypoints to make the route non-linear
     val numWaypoints = 2
     val waypoints = mutableListOf<GeoPoint>()
-    
+
     for (i in 1..numWaypoints) {
         // Create waypoints that deviate from the direct path
         val ratio = i.toFloat() / (numWaypoints + 1)
         val lat = start.latitude + (end.latitude - start.latitude) * ratio
         val lon = start.longitude + (end.longitude - start.longitude) * ratio
-        
+
         // Add significant deviation to create a realistic route
         // The deviation is proportional to the direct distance
         val deviationFactor = directDistance * 0.2 // 20% of the direct distance
         val latOffset = (Math.random() * deviationFactor - deviationFactor/2) / 111.0 // Convert km to degrees (approx)
         val lonOffset = (Math.random() * deviationFactor - deviationFactor/2) / (111.0 * Math.cos(Math.toRadians(lat)))
-        
+
         waypoints.add(GeoPoint(lat + latOffset, lon + lonOffset))
         Log.d("MatatuPage", "Added major waypoint at ${lat + latOffset},${lon + lonOffset}")
     }
-    
+
     // Now create segments between start, waypoints, and end
     val allPoints = mutableListOf<GeoPoint>().apply {
         add(start)
         addAll(waypoints)
         add(end)
     }
-    
+
     // For each segment, add intermediate points
     for (i in 0 until allPoints.size - 1) {
         val segmentStart = allPoints[i]
         val segmentEnd = allPoints[i + 1]
-        
+
         if (i > 0) { // Don't add the start point again for segments after the first
             routePoints.add(segmentStart)
         }
-        
+
         // Add intermediate points for this segment
         addIntermediatePointsBetweenStops(routePoints, segmentStart, segmentEnd)
     }
-    
+
     // Add the final destination point
     routePoints.add(end)
-    
+
     Log.d("MatatuPage", "Created realistic route with ${routePoints.size} points")
 }
 
@@ -1165,16 +1245,16 @@ fun createRealisticRoutePath(routePoints: MutableList<GeoPoint>, start: GeoPoint
 fun addIntermediatePointsBetweenStops(routePoints: MutableList<GeoPoint>, start: GeoPoint, end: GeoPoint) {
     // Add 3-5 intermediate points to create a more realistic path
     val numPoints = 3 + (Math.random() * 2).toInt() // 3-4 points
-    
+
     for (i in 1..numPoints) {
         val ratio = i.toFloat() / (numPoints + 1)
         val lat = start.latitude + (end.latitude - start.latitude) * ratio
         val lon = start.longitude + (end.longitude - start.longitude) * ratio
-        
+
         // Add some randomness for a more realistic path
         val latOffset = (Math.random() * 0.0005 - 0.00025)
         val lonOffset = (Math.random() * 0.0005 - 0.00025)
-        
+
         routePoints.add(GeoPoint(lat + latOffset, lon + lonOffset))
     }
 }
@@ -1184,20 +1264,20 @@ fun addIntermediatePointsBetweenStops(routePoints: MutableList<GeoPoint>, start:
  */
 fun calculateDistances(point1: GeoPoint, point2: GeoPoint): Double {
     val R = 6371.0 // Earth radius in kilometers
-    
+
     val lat1 = Math.toRadians(point1.latitude)
     val lon1 = Math.toRadians(point1.longitude)
     val lat2 = Math.toRadians(point2.latitude)
     val lon2 = Math.toRadians(point2.longitude)
-    
+
     val dLat = lat2 - lat1
     val dLon = lon2 - lon1
-    
+
     val a = Math.sin(dLat/2) * Math.sin(dLat/2) +
             Math.cos(lat1) * Math.cos(lat2) *
             Math.sin(dLon/2) * Math.sin(dLon/2)
     val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-    
+
     return R * c
 }
 
@@ -1207,19 +1287,19 @@ fun calculateDistances(point1: GeoPoint, point2: GeoPoint): Double {
 fun readRouteSummary(tts: TextToSpeech, directions: List<String>) {
     // First, announce that we're going to read the route summary
     tts.speak("Here's your route summary:", TextToSpeech.QUEUE_FLUSH, null, null)
-    
+
     // Add a slight pause
     tts.playSilentUtterance(500, TextToSpeech.QUEUE_ADD, null)
-    
+
     // Read each direction with a pause between them
     for (i in directions.indices) {
         val direction = "Step ${i + 1}: ${directions[i]}"
         tts.speak(direction, TextToSpeech.QUEUE_ADD, null, null)
         tts.playSilentUtterance(300, TextToSpeech.QUEUE_ADD, null)
     }
-    
+
     // Final message
-    tts.speak("End of route summary. Follow these directions to reach the matatu stop.", 
+    tts.speak("End of route summary. Follow these directions to reach the matatu stop.",
         TextToSpeech.QUEUE_ADD, null, null)
 }
 
@@ -1233,7 +1313,7 @@ fun DirectionItem(
     onClick: () -> Unit
 ) {
     val backgroundColor = if (isActive) Color(0xFFE3F2FD) else Color.Transparent
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1251,7 +1331,7 @@ fun DirectionItem(
                 .size(24.dp)
                 .padding(end = 8.dp)
         )
-        
+
         // Direction text
         Text(
             text = direction,
@@ -1259,6 +1339,6 @@ fun DirectionItem(
             color = if (isActive) Color.Black else Color.DarkGray
         )
     }
-    
+
     Divider(thickness = 0.5.dp)
 }

@@ -178,13 +178,13 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             )
 
             // Settings Icon aligned to the right
-            Image(
-                painter = painterResource(id = R.drawable.settings_icon),
-                contentDescription = "Settings",
-                modifier = Modifier
-                    .size(26.dp)
-                    .align(Alignment.CenterEnd)
-            )
+//            Image(
+//                painter = painterResource(id = R.drawable.settings_icon),
+//                contentDescription = "Settings",
+//                modifier = Modifier
+//                    .size(26.dp)
+//                    .align(Alignment.CenterEnd)
+//            )
         }
 
 
@@ -319,13 +319,13 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
         Spacer(modifier = Modifier.height(24.dp))
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            // Settings
-            Text(text = "Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+//            // Settings
+//            Text(text = "Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+//            Spacer(modifier = Modifier.height(8.dp))
 
-            SettingItem("Alert Settings", R.drawable.alert_icon)
-            SettingItem("Audio Settings", R.drawable.audio_icon)
-            SettingItem("Security & Privacy", R.drawable.shield_icon)
+//            SettingItem("Alert Settings", R.drawable.alert_icon)
+//            SettingItem("Audio Settings", R.drawable.audio_icon)
+//            SettingItem("Security & Privacy", R.drawable.shield_icon)
             
             // Database Viewer Button
             Row(
