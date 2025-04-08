@@ -57,23 +57,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 this,
                 ViewModelProvider.AndroidViewModelFactory.getInstance(application)
             ).get(UserViewModel::class.java)
-            
+
             // State to hold the userId
             var userId by remember { mutableStateOf(-1) }
-            
+
             // Get the Firebase UID from GoogleAuthClient
             val firebaseUid = googleAuthClient.getUserId()
-            
+
             // Effect to retrieve the userId when Firebase UID is available
             LaunchedEffect(firebaseUid) {
                 if (!firebaseUid.isNullOrEmpty()) {
                     // Get the userId from the database using the Firebase UID
                     val retrievedUserId = userViewModel.getUserIDByFirebaseUUID(firebaseUid)
                     userId = retrievedUserId
-                    
+
                     // Log the retrieved userId for debugging
                     android.util.Log.d("MainActivity", "Retrieved userId: $userId for Firebase UID: $firebaseUid")
-                    
+
                     // Save the userId to SharedPreferences for future use
                     val sharedPreferences = getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
                     sharedPreferences.edit().putInt("userId", userId).apply()
@@ -82,10 +82,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
             }
 
-                NavHost(
+            NavHost(
 
                 navController = navController,
-               startDestination = Routes.GoogleSignInScreen
+                startDestination = Routes.GoogleSignInScreen
             ) {
                 composable(Routes.homeScreen) {
                     HomeScreen(

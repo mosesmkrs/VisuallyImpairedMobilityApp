@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.NavController
 import com.example.newapp.R
 import com.example.newapp.Routes
@@ -32,7 +33,7 @@ fun Footer(navController: NavController) {
         FooterItem("Home", R.drawable.home_icon,) { navController.navigate(Routes.homeScreen) }
         FooterItem("Navigate", R.drawable.navigate_icon) { navController.navigate(Routes.navigationPage) }
         FooterItem("Matatu", R.drawable.bus_icon) { navController.navigate(Routes.MatatuPage) }
-        FooterItem("Settings", R.drawable.settings_icon) { navController.navigate(Routes.profilePage) }
+        FooterItem("Profile", R.drawable.person_icon) { navController.navigate(Routes.profilePage) }
     }
 }
 

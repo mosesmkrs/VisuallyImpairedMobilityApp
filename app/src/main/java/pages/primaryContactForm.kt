@@ -217,13 +217,14 @@ fun ContactFormScreen(navController: NavController) {
             if (it.moveToFirst()) {
                 val phoneNumber = it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
                 primaryPhone = phoneNumber.replace("\\s".toRegex(), "")
-                tts.speak("Phone number for $name is $primaryPhone", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts.speak("Phone number for $name", TextToSpeech.QUEUE_FLUSH, null, null)
             } else {
                 tts.speak("No phone number found for $name", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
         cursor?.close()
     }
+
 
     fun startVoiceInput() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -251,18 +252,47 @@ fun ContactFormScreen(navController: NavController) {
         speechRecognizer.startListening(intent)
     }
 
+    fun startPhoneVoiceInput() {
+        tts.speak("Please say the phone number", TextToSpeech.QUEUE_FLUSH, null, null)
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the phone number")
+        }
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    // Process the spoken phone number - remove spaces and non-numeric characters
+                    val phoneNumber = matches[0].replace(Regex("[^0-9]"), "")
+                    primaryPhone = phoneNumber
+                    tts.speak("Phone number set to $phoneNumber", TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+            }
+            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        speechRecognizer.startListening(intent)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .statusBarsPadding()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { startVoiceInput() }, // 👈 Single Tap triggers voice input
-                    onDoubleTap = { submitContact() },
+                    onDoubleTap = {
+                        tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
+                        startVoiceInput()
+                    }
                 )
-            },
+            }
+            .statusBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
@@ -270,8 +300,19 @@ fun ContactFormScreen(navController: NavController) {
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
+        
+        // Instructions for visually impaired users
+        Text(
+            text = "Double tap on any field to use voice input",
+            fontSize = 16.sp,
+            color = Color.Gray,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        
         Text("Primary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = primaryName,
@@ -281,12 +322,9 @@ fun ContactFormScreen(navController: NavController) {
             },
             label = { Text("Full Name") },
             isError = primaryNameError != null,
-            trailingIcon = {
-                IconButton(onClick = { startVoiceInput() }) {
-                    Icon(Icons.Filled.Mic, contentDescription = "Voice Input")
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+
         )
         if (primaryNameError != null) {
             Text(primaryNameError!!, color = MaterialTheme.colorScheme.error)
@@ -314,7 +352,21 @@ fun ContactFormScreen(navController: NavController) {
             label = { Text("Phone Number") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             isError = primaryPhoneError != null,
-            modifier = Modifier.fillMaxWidth()
+            trailingIcon = {
+                IconButton(onClick = { startPhoneVoiceInput() }) {
+                    Icon(Icons.Filled.Mic, contentDescription = "Voice Input for Phone")
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = { 
+                            tts.speak("Voice input for phone number", TextToSpeech.QUEUE_FLUSH, null, null)
+                            startPhoneVoiceInput() 
+                        }
+                    )
+                }
         )
         if (primaryPhoneError != null) {
             Text(primaryPhoneError!!, color = MaterialTheme.colorScheme.error)

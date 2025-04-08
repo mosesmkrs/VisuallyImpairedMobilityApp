@@ -62,10 +62,10 @@ fun GoogleSignInScreen(
     val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    
+
     // Check if user is already signed in
     var isSignedIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
-    
+
     // Initialize ViewModels for SQLite database operations
     val userViewModel = remember {
         ViewModelProvider(
@@ -73,7 +73,7 @@ fun GoogleSignInScreen(
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(UserViewModel::class.java)
     }
-    
+
     // Initialize contact ViewModels to check if contacts exist
     val primaryContactViewModel = remember {
         ViewModelProvider(
@@ -81,14 +81,14 @@ fun GoogleSignInScreen(
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(pCViewModel::class.java)
     }
-    
+
     val secondaryContactViewModel = remember {
         ViewModelProvider(
             lifecycleOwner as ViewModelStoreOwner,
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(sCViewModel::class.java)
     }
-    
+
     // Activity result launcher for Google Sign-In
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -172,7 +172,7 @@ fun GoogleSignInScreen(
             fontSize = 18.sp,
             textAlign = TextAlign.Center
         )
-        
+
         // Show error message if any
         errorMessage?.let {
             Spacer(modifier = Modifier.height(8.dp))
@@ -183,7 +183,7 @@ fun GoogleSignInScreen(
                 textAlign = TextAlign.Center
             )
         }
-        
+
         Spacer(modifier = Modifier.height(32.dp))
         Box(
             contentAlignment = Alignment.Center
@@ -197,7 +197,7 @@ fun GoogleSignInScreen(
                             isLoading = true
                             errorMessage = null
                             speakText(tts, "Signing in with Google. Please wait.")
-                            
+
                             // Start the sign-in flow
                             val intentSender = googleAuthClient.signIn()
                             if (intentSender != null) {
@@ -257,7 +257,7 @@ suspend fun processSignedInUser(
     val newUserId = googleAuthClient.getUserId() ?: ""
     val newUserEmail = googleAuthClient.getUserEmail() ?: ""
     val newUserPhotoUrl = googleAuthClient.getUserPhotoUrl() ?: ""
-    
+
     // Create a new user object for SQLite database
     val user = Users(
         firebaseUUID = newUserId,
@@ -265,7 +265,7 @@ suspend fun processSignedInUser(
         email = newUserEmail,
         photoURL = newUserPhotoUrl
     )
-    
+
     try {
         // Check if user already exists and handle accordingly
         val userExists = userViewModel.userExists(newUserId)
@@ -285,7 +285,7 @@ suspend fun processSignedInUser(
         e.printStackTrace()
         speakText(tts, "Sign-in successful! Welcome, $newUserName. Note: Some user data could not be saved locally.")
     }
-    
+
     // Check if user has any contacts
     var userID = 0
     try {
@@ -295,13 +295,13 @@ suspend fun processSignedInUser(
         Log.e("Login", "Error getting user ID: ${e.message}")
         e.printStackTrace()
     }
-    
+
     if (userID > 0) {
         val hasPrimaryContact = primaryContactViewModel.getPrimaryContact(userID) != null
         val hasSecondaryContact = secondaryContactViewModel.getSecondaryContact(userID) != null
-        
+
         Log.d("Login", "Contact check - Primary: $hasPrimaryContact, Secondary: $hasSecondaryContact")
-        
+
         if (hasPrimaryContact && hasSecondaryContact) {
             // User has both contacts, navigate to home page
             Log.d("Navigation", "User has both contacts, navigating to home page")

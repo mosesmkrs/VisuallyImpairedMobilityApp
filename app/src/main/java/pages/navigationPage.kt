@@ -119,9 +119,7 @@ fun NavigationPage(navController: NavController) {
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
                 tts?.speak("You are on the Navigation Page." +
-                        "Double tap on the top of the screen to enter your destination." +
-                        " Swipe right to move to the next tab. " +
-                        "Swipe left to move back", TextToSpeech.QUEUE_FLUSH, null, null)
+                        "Double tap on the top of the screen to enter your destination.", TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
         }
@@ -188,32 +186,32 @@ fun NavigationPage(navController: NavController) {
             }
         }
     }
-
-    val gestureDetector = Modifier.pointerInput(Unit) {
-        detectHorizontalDragGestures { _, dragAmount ->
-            if (dragAmount > 100) { // Swipe Right: Move to the next tab
-                selectedTab = when (selectedTab) {
-                    0 -> 1 // Maps → History
-                    1 -> 2 // History → Saved Sites
-                    else -> 2 // Stay on Saved Sites (no further right navigation)
-                }
-            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
-                selectedTab = when (selectedTab) {
-                    2 -> 1 // Saved Sites → History
-                    1 -> 0 // History → Maps
-                    else -> 0 // Stay on Maps (no further left navigation)
-                }
-            }
-
-            // Announce the switched tab
-            val tabName = when (selectedTab) {
-                0 -> "Maps"
-                1 -> "History"
-                else -> "Saved Sites"
-            }
-            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
-        }
-    }
+//
+//    val gestureDetector = Modifier.pointerInput(Unit) {
+//        detectHorizontalDragGestures { _, dragAmount ->
+//            if (dragAmount > 100) { // Swipe Right: Move to the next tab
+//                selectedTab = when (selectedTab) {
+//                    0 -> 1 // Maps → History
+//                    1 -> 2 // History → Saved Sites
+//                    else -> 2 // Stay on Saved Sites (no further right navigation)
+//                }
+//            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
+//                selectedTab = when (selectedTab) {
+//                    2 -> 1 // Saved Sites → History
+//                    1 -> 0 // History → Maps
+//                    else -> 0 // Stay on Maps (no further left navigation)
+//                }
+//            }
+//
+//            // Announce the switched tab
+//            val tabName = when (selectedTab) {
+//                0 -> "Maps"
+//                1 -> "History"
+//                else -> "Saved Sites"
+//            }
+//            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
+//        }
+//    }
 
 
     fun fetchRoute(
@@ -357,7 +355,7 @@ fun NavigationPage(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
             .navigationBarsPadding()
-            .then(gestureDetector)
+           // .then(gestureDetector)
             .pointerInput(Unit) {
                 detectTapGestures(onDoubleTap = {
                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -372,62 +370,62 @@ fun NavigationPage(navController: NavController) {
             }
             .navigationBarsPadding(),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.arrow_back_icon),
-                contentDescription = "Back",
-                tint = Color.Black,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clickable { navController.popBackStack() }
-            )
-
-            Text(
-                text = "Navigate",
-                fontSize = 22.sp,
-                color = Color.Black
-            )
-
-            Text(
-                text = "Cancel",
-                fontSize = 18.sp,
-                color = Color.Black,
-                modifier = Modifier.clickable { navController.popBackStack() }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Icon Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .zIndex(1f),
-            horizontalArrangement = Arrangement.SpaceAround
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.map_icon),
-                contentDescription = "Map",
-                tint = Color.Black
-            )
-            Icon(
-                painter = painterResource(id = R.drawable.history_icon),
-                contentDescription = "History",
-                tint = Color.Black
-            )
-            Icon(
-                painter = painterResource(id = R.drawable.bookmark_icon),
-                contentDescription = "Bookmarks",
-                tint = Color.Black
-            )
-        }
+//        Row(
+//            verticalAlignment = Alignment.CenterVertically,
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(16.dp),
+//            horizontalArrangement = Arrangement.SpaceBetween
+//        ) {
+//            Icon(
+//                painter = painterResource(id = R.drawable.arrow_back_icon),
+//                contentDescription = "Back",
+//                tint = Color.Black,
+//                modifier = Modifier
+//                    .size(32.dp)
+//                    .clickable { navController.popBackStack() }
+//            )
+//
+//            Text(
+//                text = "Navigate",
+//                fontSize = 22.sp,
+//                color = Color.Black
+//            )
+//
+//            Text(
+//                text = "Cancel",
+//                fontSize = 18.sp,
+//                color = Color.Black,
+//                modifier = Modifier.clickable { navController.popBackStack() }
+//            )
+//        }
+//
+//        Spacer(modifier = Modifier.height(12.dp))
+//
+//        // Icon Row
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(horizontal = 16.dp)
+//                .zIndex(1f),
+//            horizontalArrangement = Arrangement.SpaceAround
+//        ) {
+//            Icon(
+//                painter = painterResource(id = R.drawable.map_icon),
+//                contentDescription = "Map",
+//                tint = Color.Black
+//            )
+//            Icon(
+//                painter = painterResource(id = R.drawable.history_icon),
+//                contentDescription = "History",
+//                tint = Color.Black
+//            )
+//            Icon(
+//                painter = painterResource(id = R.drawable.bookmark_icon),
+//                contentDescription = "Bookmarks",
+//                tint = Color.Black
+//            )
+//        }
 
         Spacer(modifier = Modifier.height(12.dp))
         // Show error message if any

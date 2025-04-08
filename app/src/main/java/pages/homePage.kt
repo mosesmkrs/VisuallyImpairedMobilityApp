@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,21 +46,14 @@ import android.content.Context
 import android.media.AudioManager
 import android.location.LocationManager
 import android.Manifest
-import android.R.id.message
 import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.app.Application
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.runtime.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -78,7 +72,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.lifecycleScope
 import com.example.newapp.R
 import com.example.newapp.Routes
 import com.example.newapp.SQL.PC.pCViewModel
@@ -90,6 +83,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.jvm.java
+import android.os.Build
+import android.view.View
+import android.view.KeyEvent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import androidx.activity.ComponentActivity
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -106,7 +108,7 @@ fun HomeScreen(
     var isGpsEnabled by remember { mutableStateOf(false) }
     var ringerStatus by remember { mutableStateOf("Checking...") }
     var actualUserId by remember { mutableStateOf(userId) }
-
+    
     // Get the Firebase UID from GoogleAuthClient
     val firebaseUid = googleAuthClient.getUserId()
 
@@ -137,14 +139,71 @@ fun HomeScreen(
         }
     }
 
+    // Create a listener for TTS completion events
+    val ttsListener = remember {
+        object : TextToSpeech.OnInitListener {
+            override fun onInit(status: Int) {
+                if (status == TextToSpeech.SUCCESS) {
+                    // Configure TTS settings
+                    textToSpeech.language = Locale.US
+                    textToSpeech.setSpeechRate(0.9f)
+                    
+                    // Speak the welcome message
+                    val message = "You are on the Home Screen. " +
+                            "Double Tap to activate SOS. " +
+                            "Single tap to start navigation."
+                    
+                    // Use a HashMap for utterance parameters
+                    val params = HashMap<String, String>()
+                    params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "HOME_INTRO"
+                    
+                    textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, params)
+                    Log.d("HomeScreen", "TTS initialized and speaking welcome message")
+                } else {
+                    Log.e("HomeScreen", "Failed to initialize TTS in HomeScreen")
+                }
+            }
+        }
+    }
+    
+    // Use LaunchedEffect to ensure the welcome message is spoken when navigating to this screen
     LaunchedEffect(Unit) {
+        // Force re-initialization of TTS when entering this screen
+        textToSpeech.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                Log.d("HomeScreen", "Started speaking: $utteranceId")
+            }
+            
+            override fun onDone(utteranceId: String?) {
+                Log.d("HomeScreen", "Finished speaking: $utteranceId")
+            }
+            
+            override fun onError(utteranceId: String?) {
+                Log.e("HomeScreen", "Error speaking: $utteranceId")
+            }
+        })
+        
+        // Speak with a slight delay to ensure UI is ready
+        delay(300)
         val message = "You are on the Home Screen. " +
-                "Single tap for SOS Emergency."+
-                "Double tap for Start Navigation." +
-                "Swipe right to go back."
-
-        textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
-
+                "Double tap to activate SOS. " +
+                "Single tap to start navigation."
+        
+        // Speak directly with utterance ID
+        if (textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, "HOME_SCREEN_INTRO") == TextToSpeech.ERROR) {
+            Log.e("HomeScreen", "Error speaking welcome message")
+        } else {
+            Log.d("HomeScreen", "Welcome message queued successfully")
+        }
+    }
+    
+    // Cleanup when leaving the screen
+    DisposableEffect(Unit) {
+        onDispose {
+            if (textToSpeech.isSpeaking) {
+                textToSpeech.stop()
+            }
+        }
     }
 
     // Initialize ViewModels
@@ -172,6 +231,7 @@ fun HomeScreen(
             callPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
         }
     }
+
 
 
 
@@ -226,19 +286,32 @@ fun HomeScreen(
         ringerStatus = checkRingerMode(context)
     }
 
+    // Create ViewModels for emergency contacts
+    val primaryContactViewModel = ViewModelProvider(
+        lifecycleOwner as ViewModelStoreOwner,
+        ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+    ).get(pCViewModel::class.java)
+    
+    val secondaryContactViewModel = ViewModelProvider(
+        lifecycleOwner as ViewModelStoreOwner,
+        ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+    ).get(sCViewModel::class.java)
+
+
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = {
+                    onDoubleTap = {
                         lifecycleOwner.lifecycleScope.launch {
                             sendSOSCall(context, actualUserId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
                         }
                         textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
                     },
-                    onDoubleTap = {
+                    onTap = {
                         textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
                         navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
                     }
@@ -437,48 +510,48 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Nearby Alerts Section
-        Text(
-            text = "Nearby Alerts",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        Spacer(modifier = Modifier.height(12.dp))
+//
+//        Spacer(modifier = Modifier.height(24.dp))
+//
+//        // Nearby Alerts Section
+//        Text(
+//            text = "Nearby Alerts",
+//            fontSize = 20.sp,
+//            fontWeight = FontWeight.Bold,
+//            color = Color.Black
+//        )
+//        Spacer(modifier = Modifier.height(12.dp))
 
         // Alert Cards
-        val alerts = listOf(
-            Pair("Crosswalk ahead - 20m", R.drawable.cross_icon),
-            Pair("Construction work - 50m", R.drawable.construction_icon)
-        )
-
-        alerts.forEach { (text, iconRes) ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(id = iconRes),
-                        contentDescription = text,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text, fontSize = 16.sp)
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+//        val alerts = listOf(
+//            Pair("Crosswalk ahead - 20m", R.drawable.cross_icon),
+//            Pair("Construction work - 50m", R.drawable.construction_icon)
+//        )
+//
+//        alerts.forEach { (text, iconRes) ->
+//            Card(
+//                modifier = Modifier.fillMaxWidth(),
+//                shape = RoundedCornerShape(12.dp),
+//                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+//                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+//            ) {
+//                Row(
+//                    modifier = Modifier.padding(16.dp),
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Image(
+//                        painter = painterResource(id = iconRes),
+//                        contentDescription = text,
+//                        modifier = Modifier.size(20.dp)
+//                    )
+//                    Spacer(modifier = Modifier.width(8.dp))
+//                    Text(text, fontSize = 16.sp)
+//                }
+//            }
+//            Spacer(modifier = Modifier.height(12.dp))
         }
     }
-}
+
 
 @SuppressLint("MissingPermission")
 suspend fun sendSOSCall(
@@ -493,7 +566,7 @@ suspend fun sendSOSCall(
         // Show feedback to user
         Toast.makeText(context, "SOS Emergency activated", Toast.LENGTH_LONG).show()
         
-        // Initialize TTS
+         //Initialize TTS
         val tts = if (textToSpeech != null) {
             // Use the provided TextToSpeech instance
             textToSpeech
@@ -507,17 +580,19 @@ suspend fun sendSOSCall(
                 language = Locale.getDefault()
             }
         }
+
+
         
         // Wait for TTS to initialize
         delay(500)
         
         // Speak the SOS activation message
-        tts.speak("SOS Emergency activated. Contacting emergency contacts now.", TextToSpeech.QUEUE_FLUSH, null, null)
+        tts?.speak("SOS Emergency activated. Contacting emergency contacts now.", TextToSpeech.QUEUE_FLUSH, null, null)
         
         // Check call permission
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
             Log.e("SOS", "Call permission not granted")
-            tts.speak("Call permission not granted. Please enable call permissions in your settings.", TextToSpeech.QUEUE_FLUSH, null, null)
+            tts?.speak("Call permission not granted. Please enable call permissions in your settings.", TextToSpeech.QUEUE_FLUSH, null, null)
             return
         }
 
@@ -526,7 +601,7 @@ suspend fun sendSOSCall(
         // Debug the userId
         if (userId <= 0) {
             Log.e("SOS", "Invalid userId: $userId")
-            tts.speak("User ID is invalid. Please sign in again.", TextToSpeech.QUEUE_FLUSH, null, null)
+            tts?.speak("User ID is invalid. Please sign in again.", TextToSpeech.QUEUE_FLUSH, null, null)
             return
         }
         
@@ -564,7 +639,7 @@ suspend fun sendSOSCall(
 
         if (firstNumber.isNullOrEmpty() && secondNumber.isNullOrEmpty()) {
             Log.e("SOS", "No emergency contacts found")
-            tts.speak("No emergency contacts found. Please add emergency contacts in your profile.", TextToSpeech.QUEUE_FLUSH, null, null)
+            tts?.speak("No emergency contacts found. Please add emergency contacts in your profile.", TextToSpeech.QUEUE_FLUSH, null, null)
             return
         }
 
@@ -574,7 +649,9 @@ suspend fun sendSOSCall(
         
         // Try primary contact first if available
         if (!firstNumber.isNullOrEmpty()) {
-            tts.speak("Calling primary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+            val message = "Calling primary emergency contact."
+            //provideAudioFeedback(tts,message,false,context)
+           tts?.speak("Calling primary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
             delay(1000) // Wait for TTS to complete
             
             try {
@@ -590,7 +667,9 @@ suspend fun sendSOSCall(
                 
                 // After the delay, try the secondary contact if available
                 if (!secondNumber.isNullOrEmpty()) {
-                    tts.speak("Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+                    val message = "Calling secondary emergency contact"
+                    //provideAudioFeedback(tts,message,false,context)
+                   tts?.speak("Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
                     delay(1000) // Wait for TTS to complete
                     
                     val secondIntent = Intent(Intent.ACTION_CALL).apply {
@@ -606,7 +685,9 @@ suspend fun sendSOSCall(
                 
                 // If primary call fails, try secondary
                 if (!secondNumber.isNullOrEmpty()) {
-                    tts.speak("Failed to call primary contact. Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+                    val message = "Failed to call primary contact, Calling secondary emergency contact"
+                    //provideAudioFeedback(tts,message,false,context)
+                   tts?.speak("Failed to call primary contact. Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
                     delay(1000) // Wait for TTS to complete
                     
                     try {
@@ -619,13 +700,17 @@ suspend fun sendSOSCall(
                     } catch (e: Exception) {
                         Log.e("SOS", "Error making call to secondary contact: ${e.message}")
                         e.printStackTrace()
-                        tts.speak("Failed to call emergency contacts. Please try again or call emergency services directly.", TextToSpeech.QUEUE_FLUSH, null, null)
+                        val message = "Failed to call emergency contacts, Please try again or call emergency services directly."
+                       // provideAudioFeedback(tts,message,false,context)
+                       tts?.speak("Failed to call emergency contacts, Please try again or call emergency services directly.", TextToSpeech.QUEUE_FLUSH, null, null)
                     }
                 }
             }
         } else if (!secondNumber.isNullOrEmpty()) {
             // If no primary contact but secondary is available
-            tts.speak("No primary contact found. Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
+            val message = "No primary contact found, calling secondary emergency contact"
+            //provideAudioFeedback(tts,message,false,context)
+            tts?.speak("No primary contact found. Calling secondary emergency contact.", TextToSpeech.QUEUE_FLUSH, null, null)
             delay(1000) // Wait for TTS to complete
             
             try {
@@ -638,7 +723,9 @@ suspend fun sendSOSCall(
             } catch (e: Exception) {
                 Log.e("SOS", "Error making call to secondary contact: ${e.message}")
                 e.printStackTrace()
-                tts.speak("Failed to call emergency contacts. Please try again or call emergency services directly.", TextToSpeech.QUEUE_FLUSH, null, null)
+                val message = "Failed to call emergency contacts, please try again or call emergency services directly"
+               // provideAudioFeedback(tts,message,false,context)
+                tts?.speak("Failed to call emergency contacts, Please try again or call emergency services directly.", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
     } catch (e: Exception) {
