@@ -63,6 +63,12 @@ import com.example.newapp.SQL.PC.pCViewModel
 import com.example.newapp.SQL.SC.SecondaryContact
 import com.example.newapp.SQL.SC.sCViewModel
 import com.example.newapp.SQL.users.UserViewModel
+import android.content.Intent
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.widget.Toast
 
 @Composable
 fun ProfilePage(googleAuthClient: GoogleAuthClient,
@@ -77,12 +83,14 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
     val context = LocalContext.current
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
+    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
+
     // Text-to-Speech setup
     tts = remember {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
-                tts?.speak("Profile Page. Swipe right to sign out. Swipe left to edit emergency contacts.Double tap to repeat the message"
+                tts?.speak("Profile Page. Swipe right to sign out."
                        , TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
@@ -134,6 +142,46 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
         }
     }
 
+    // Function to start voice input
+    fun startVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say Yes to confirm logout or No to cancel")
+        }
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    val response = matches[0].toLowerCase(Locale.ROOT)
+                    if (response.contains("yes")) {
+                        lifecycleOwner.lifecycleScope.launch {
+                            googleAuthClient.signOut()
+                            isSignIn = false
+                            userName = "Unknown"
+                            userEmail = "No Email"
+                            userPhoto = null
+                            showLogoutDialog = false
+                            navController.navigate(Routes.GoogleSignInScreen)
+                        }
+                    } else if (response.contains("no")) {
+                        showLogoutDialog = false
+                    } else {
+                        tts?.speak("Please say Yes or No", TextToSpeech.QUEUE_FLUSH, null, null)
+                    }
+                }
+            }
+            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        speechRecognizer.startListening(intent)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -142,11 +190,15 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             .pointerInput(Unit) {
                 detectTapGestures(
                     onDoubleTap = {
-                        // Repeat TTS message on double-tap
                         tts?.speak(
                             "Profile Page. Swipe right to sign out. Swipe left to edit your emergency contact. Double-tap to repeat this message.",
                             TextToSpeech.QUEUE_FLUSH, null, null
                         )
+                    },
+                    onLongPress = {
+                        showLogoutDialog = true
+                        tts?.speak("Confirm Signout. Say Yes to confirm or No to cancel.", TextToSpeech.QUEUE_FLUSH, null, null)
+                        startVoiceInput()
                     }
                 )
             }
@@ -265,21 +317,10 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
 
         if (showLogoutDialog) {
             AlertDialog(
-                onDismissRequest = { showLogoutDialog = false }, // Dismiss dialog on outside tap
+                onDismissRequest = { showLogoutDialog = false },
                 confirmButton = {
-                    TextButton(onClick = {
-                        lifecycleOwner.lifecycleScope.launch {
-                            googleAuthClient.signOut()
-                            isSignIn = false
-                            isSignIn = false
-                            userName = "Unknown"
-                            userEmail = "No Email"
-                            userPhoto = null
-                            showLogoutDialog = false
-                            navController.navigate(Routes.GoogleSignInScreen) // Navigate to login screen
-                        }
-                    }) {
-                        Text("Logout", color = Color.Red)
+                    TextButton(onClick = { startVoiceInput() }) {
+                        Text("Use Voice", color = Color.Blue)
                     }
                 },
                 dismissButton = {

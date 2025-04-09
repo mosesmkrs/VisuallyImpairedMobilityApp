@@ -314,6 +314,7 @@ fun SecondaryContactForm(navController: NavController) {
                 detectTapGestures(
                     onTap = {
                        submitContact()
+                        tts.speak("Submitting contact", TextToSpeech.QUEUE_FLUSH, null, null)
                     },
                     onDoubleTap = {
                         tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
@@ -332,16 +333,7 @@ fun SecondaryContactForm(navController: NavController) {
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        
-//        // Instructions for visually impaired users
-//        Text(
-//            text = "Double tap on any field to use voice input",
-//            fontSize = 16.sp,
-//            color = Color.Gray,
-//            textAlign = TextAlign.Center,
-//            modifier = Modifier.fillMaxWidth()
-//        )
-//
+
         Text("Secondary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = secondaryName,
