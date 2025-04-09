@@ -85,7 +85,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             NavHost(
 
                 navController = navController,
-                startDestination = Routes.GoogleSignInScreen
+                startDestination = Routes.homeScreen
+                //startDestination = Routes.GoogleSignInScreen
             ) {
                 composable(Routes.homeScreen) {
                     HomeScreen(

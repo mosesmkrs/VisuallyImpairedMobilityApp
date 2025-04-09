@@ -289,6 +289,10 @@ fun ContactFormScreen(navController: NavController) {
                     onDoubleTap = {
                         tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
                         startVoiceInput()
+                    },
+                    onTap = {
+                        submitContact()
+                        tts.speak("Submitting contact", TextToSpeech.QUEUE_FLUSH, null, null)
                     }
                 )
             }
@@ -303,15 +307,7 @@ fun ContactFormScreen(navController: NavController) {
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        
-        // Instructions for visually impaired users
-        Text(
-            text = "Double tap on any field to use voice input",
-            fontSize = 16.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Spacer(modifier = Modifier.height(16.dp))
         
         Text("Primary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
@@ -359,14 +355,6 @@ fun ContactFormScreen(navController: NavController) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = { 
-                            tts.speak("Voice input for phone number", TextToSpeech.QUEUE_FLUSH, null, null)
-                            startPhoneVoiceInput() 
-                        }
-                    )
-                }
         )
         if (primaryPhoneError != null) {
             Text(primaryPhoneError!!, color = MaterialTheme.colorScheme.error)
