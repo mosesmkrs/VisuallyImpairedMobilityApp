@@ -61,7 +61,7 @@ fun ContactFormScreen(navController: NavController) {
                 status ->
             if(status == TextToSpeech.SUCCESS){
                 tts.language = Locale.getDefault()
-                tts.speak("You are on the Primary Contact page", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts.speak("You are on the Primary Emergency Contact page", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
     }

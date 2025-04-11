@@ -156,7 +156,7 @@ fun HomeScreen(
                     params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "HOME_INTRO"
                     
                     textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, params)
-                    Log.d("HomeScreen", "TTS initialized and speaking welcome message")
+                    Log.d("Homescreen", "TTS initialized and speaking welcome message")
                 } else {
                     Log.e("HomeScreen", "Failed to initialize TTS in HomeScreen")
                 }

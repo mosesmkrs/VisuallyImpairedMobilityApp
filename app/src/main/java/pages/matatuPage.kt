@@ -112,7 +112,7 @@ fun MatatuPage(navController: NavController) {
                 status ->
             if(status == TextToSpeech.SUCCESS){
                 tts?.language = Locale.US
-                tts?.speak("You are on the Matatu Page", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts?.speak("You are on the matatu page", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
     }

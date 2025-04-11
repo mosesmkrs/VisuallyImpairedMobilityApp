@@ -119,7 +119,7 @@ fun SecondaryContactForm(navController: NavController) {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts.language = Locale.getDefault()
-                tts.speak("You are on the Navigation Page", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts.speak("You are on the Secondary Emergency contact page", TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
         }

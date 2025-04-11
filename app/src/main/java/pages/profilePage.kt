@@ -60,7 +60,7 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 status ->
             if(status == TextToSpeech.SUCCESS){
                 tts.language = Locale.getDefault()
-                tts.speak("You are on the Profile page", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts.speak("You are on the profile page", TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
     }
