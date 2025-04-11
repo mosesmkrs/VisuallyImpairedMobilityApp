@@ -7,6 +7,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -14,6 +18,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +32,7 @@ import androidx.navigation.NavController
 
 import coil.compose.AsyncImage
 import androidx.compose.material3.*
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -39,6 +45,24 @@ import com.example.newapp.Routes
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.ui.text.style.TextOverflow
+import android.app.Application
+import android.util.Log
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.newapp.SQL.PC.PrimaryContact
+import com.example.newapp.SQL.PC.pCViewModel
+import com.example.newapp.SQL.SC.SecondaryContact
+import com.example.newapp.SQL.SC.sCViewModel
+import com.example.newapp.SQL.users.UserViewModel
 
 @Composable
 fun ProfilePage(googleAuthClient: GoogleAuthClient,
@@ -51,24 +75,62 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
     var userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    var tts = remember { TextToSpeech(context) { } }
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
-
-    // Initialize TTS
-    tts = remember{
-        TextToSpeech(context){
-                status ->
-            if(status == TextToSpeech.SUCCESS){
-                tts.language = Locale.getDefault()
-                tts.speak("You are on the profile page", TextToSpeech.QUEUE_FLUSH, null, null)
+    // Text-to-Speech setup
+    tts = remember {
+        TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.US
+                tts?.speak("Profile Page. Swipe right to sign out. Swipe left to edit emergency contacts.Double tap to repeat the message"
+                    , TextToSpeech.QUEUE_FLUSH, null, null)
             }
         }
     }
-    // Cleanup TTS when the screen is removed
-    DisposableEffect(Unit) {
-        onDispose {
-            tts.stop()
-            tts.shutdown()
+
+    // Initialize ViewModels
+    val userViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(UserViewModel::class.java)
+    }
+
+    val primaryContactViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(pCViewModel::class.java)
+    }
+
+    val secondaryContactViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        ).get(sCViewModel::class.java)
+    }
+
+    // Get current user ID and contacts
+    val currentFirebaseUUID = googleAuthClient.getUserId() ?: ""
+    var currentUserID by remember { mutableStateOf(0) }
+    var primaryContact by remember { mutableStateOf<PrimaryContact?>(null) }
+    var secondaryContact by remember { mutableStateOf<SecondaryContact?>(null) }
+
+    // Load user and contacts from SQLite
+    LaunchedEffect(currentFirebaseUUID) {
+        if (currentFirebaseUUID.isNotEmpty()) {
+            val user = userViewModel.getUserByFirebaseUUID(currentFirebaseUUID)
+            if (user != null) {
+                currentUserID = user.userID
+                Log.d("ProfilePage", "Loaded user ID: $currentUserID")
+
+                // Load contacts
+                primaryContact = primaryContactViewModel.getPrimaryContact(currentUserID)
+                secondaryContact = secondaryContactViewModel.getSecondaryContact(currentUserID)
+
+                Log.d("ProfilePage", "Primary contact: ${primaryContact?.contactname ?: "None"}")
+                Log.d("ProfilePage", "Secondary contact: ${secondaryContact?.contactname ?: "None"}")
+            }
         }
     }
 
@@ -77,6 +139,25 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             .fillMaxSize()
             .background(Color.White)
             .statusBarsPadding()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        // Repeat TTS message on double-tap
+                        tts?.speak(
+                            "Profile Page. Swipe right to sign out. Swipe left to edit your emergency contact. Double-tap to repeat this message.",
+                            TextToSpeech.QUEUE_FLUSH, null, null
+                        )
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { _, dragAmount ->
+                    when {
+                        dragAmount > 100 -> showLogoutDialog = true // Swipe Right to Logout
+                        dragAmount < -100 -> navController.navigate("ContactFormScreen") // Swipe Left to Edit Contact
+                    }
+                }
+            }
     ) {
         // Profile Header
         Box(
@@ -84,7 +165,9 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(vertical = 12.dp)
+                .semantics { contentDescription = "Profile Page" }
         ) {
+
             // Centered Profile Text
             Text(
                 text = "Profile",
@@ -94,7 +177,7 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 modifier = Modifier.align(Alignment.Center)
             )
 
-//            // Settings Icon aligned to the right
+            // Settings Icon aligned to the right
 //            Image(
 //                painter = painterResource(id = R.drawable.settings_icon),
 //                contentDescription = "Settings",
@@ -112,6 +195,9 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
                 .padding(horizontal = 24.dp)
+                .semantics {
+                    contentDescription = "User Profile. Name: $userName, Email: $userEmail"
+                }
         ) {
             if (userPhoto != null) {
                 AsyncImage(
@@ -133,7 +219,15 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                 )
             }
             Spacer(modifier = Modifier.width(6.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics{
+                        contentDescription =  "UserName: $userName, Email: $userEmail"
+                    }
+
+            ) {
                 Text(text = userName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(text = userEmail, fontSize = 14.sp, color = Color.Gray)
             }
@@ -147,13 +241,19 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
                             .size(40.dp)
                             .clickable {
                                 showLogoutDialog = true
-                            },
+                            }
+                            .semantics { contentDescription = "Logout Button, Double-tap to sign out" },
+
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.logout),
-                            contentDescription = "Logout",
-                            modifier = Modifier.size(26.dp)
+                            contentDescription = "Logout. Double tap to sign out.",
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clickable {
+                                    showLogoutDialog = true
+                                }
                         )
                     }
                 }
@@ -192,9 +292,6 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             )
         }
 
-
-
-
         Spacer(modifier = Modifier.height(24.dp))
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
@@ -202,10 +299,19 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             Text( text = "Emergency Contacts", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
 
-            EmergencyContactCard("Jane Doe", "Primary Contact") {
+            EmergencyContactCard(
+                type = "Primary Contact",
+                name = primaryContact?.contactname ?: "Add Primary Contact",
+                phone = primaryContact?.contactnumber
+            ) {
                 navController.navigate(Routes.ContactFormScreen)
             }
-            EmergencyContactCard("Jane Doe", "Secondary Contact") {
+
+            EmergencyContactCard(
+                type = "Secondary Contact",
+                name = secondaryContact?.contactname ?: "Add Secondary Contact",
+                phone = secondaryContact?.contactnumber
+            ) {
                 navController.navigate(Routes.SecondaryContactForm)
             }
         }
@@ -213,13 +319,15 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
         Spacer(modifier = Modifier.height(24.dp))
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            // Settings
+//            // Settings
 //            Text(text = "Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp)
 //            Spacer(modifier = Modifier.height(8.dp))
-//
+
 //            SettingItem("Alert Settings", R.drawable.alert_icon)
 //            SettingItem("Audio Settings", R.drawable.audio_icon)
 //            SettingItem("Security & Privacy", R.drawable.shield_icon)
+
+            // Database Viewer Button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -252,42 +360,37 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
             }
         }
 
-
-
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)
     }
 }
 
 @Composable
-fun EmergencyContactCard(name: String, type: String, onClick: () -> Unit) {
-    Row(
+fun EmergencyContactCard(name: String, type: String, phone: String? = null, onClick: () -> Unit) {
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFEFEFEF), shape = RoundedCornerShape(12.dp)) // Rounded corners
-            .clip(RoundedCornerShape(12.dp))
-            .padding(12.dp)
-            .clickable{ onClick() },
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFEFEF))
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.person_icon),
-            contentDescription = "Contact Icon",
-            modifier = Modifier.size(24.dp)
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(text = type, fontSize = 14.sp, color = Color.Gray)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(text = type, fontSize = 15.sp, color = Color.DarkGray, fontWeight = FontWeight.Bold)
+                Text(text = name,fontSize = 12.sp )
+                if (!phone.isNullOrEmpty()) {
+                    Text(text = phone, fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit")
         }
-        Image(
-            painter = painterResource(id = R.drawable.phone_icon),
-            contentDescription = "Call Icon",
-            modifier = Modifier.size(24.dp)
-        )
     }
-    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -313,6 +416,3 @@ fun SettingItem(title: String, iconRes: Int) {
         )
     }
 }
-
-
-
