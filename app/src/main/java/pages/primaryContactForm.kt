@@ -41,11 +41,12 @@ import com.example.newapp.SQL.PC.pCViewModel
 import com.example.newapp.SQL.users.UserViewModel
 import kotlinx.coroutines.launch
 import retrofit2.Call
+import java.util.Locale
 
 @Composable
 fun ContactFormScreen(navController: NavController) {
     val context = LocalContext.current
-    val tts = remember { TextToSpeech(context) { } }
+    var tts = remember { TextToSpeech(context) { } }
     val scope = rememberCoroutineScope()
     var primaryName by remember { mutableStateOf("") }
     var primaryPhone by remember { mutableStateOf("") }
@@ -53,7 +54,24 @@ fun ContactFormScreen(navController: NavController) {
     var primaryPhoneError by remember { mutableStateOf<String?>(null) }
     var contactSuggestions by remember { mutableStateOf(listOf<String>()) }
     var dbSaveSuccess by remember { mutableStateOf(true) }
-    
+
+// Initialize TTS
+    tts = remember{
+        TextToSpeech(context){
+                status ->
+            if(status == TextToSpeech.SUCCESS){
+                tts.language = Locale.getDefault()
+                tts.speak("You are on the Primary Emergency Contact page", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        }
+    }
+    // Cleanup TTS when the screen is removed
+    DisposableEffect(Unit) {
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+        }
+    }
     // Initialize ViewModels
     val userViewModel = remember {
         ViewModelProvider(

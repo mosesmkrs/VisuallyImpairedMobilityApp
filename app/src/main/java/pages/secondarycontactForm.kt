@@ -114,12 +114,12 @@ fun SecondaryContactForm(navController: NavController) {
     LaunchedEffect(Unit) {
         permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
     }
+
     tts = remember {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts.language = Locale.US
-                tts.speak("You are on the Navigation Page." +
-                        "Double tap on the top of the screen to enter your destination.", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts.language = Locale.getDefault()
+                tts.speak("You are on the Secondary Emergency contact page", TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
         }
@@ -127,8 +127,8 @@ fun SecondaryContactForm(navController: NavController) {
     // Cleanup TTS when the screen is removed
     DisposableEffect(Unit) {
         onDispose {
-            tts?.stop()
-            tts?.shutdown()
+            tts.stop()
+            tts.shutdown()
         }
     }
 
@@ -310,18 +310,18 @@ fun SecondaryContactForm(navController: NavController) {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = {
-                       submitContact()
-                        tts.speak("Submitting contact", TextToSpeech.QUEUE_FLUSH, null, null)
-                    },
-                    onDoubleTap = {
-                        tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
-                        startVoiceInput()
-                    }
-                )
-            }
+//            .pointerInput(Unit) {
+//                detectTapGestures(
+//                    onTap = {
+//                       submitContact()
+//                        tts.speak("Submitting contact", TextToSpeech.QUEUE_FLUSH, null, null)
+//                    },
+//                    onDoubleTap = {
+//                        tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
+//                        startVoiceInput()
+//                    }
+//                )
+//            }
             .statusBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

@@ -149,16 +149,14 @@ fun HomeScreen(
                     textToSpeech.setSpeechRate(0.9f)
                     
                     // Speak the welcome message
-                    val message = "You are on the Home Screen. " +
-                            "Double Tap to activate SOS. " +
-                            "Single tap to start navigation."
+                    val message = "You are on the Home Screen"
                     
                     // Use a HashMap for utterance parameters
                     val params = HashMap<String, String>()
                     params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "HOME_INTRO"
                     
                     textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, params)
-                    Log.d("HomeScreen", "TTS initialized and speaking welcome message")
+                    Log.d("Homescreen", "TTS initialized and speaking welcome message")
                 } else {
                     Log.e("HomeScreen", "Failed to initialize TTS in HomeScreen")
                 }
@@ -185,10 +183,7 @@ fun HomeScreen(
         
         // Speak with a slight delay to ensure UI is ready
         delay(300)
-        val message = "You are on the Home Screen. " +
-                "Double tap to activate SOS. " +
-                "Single tap to start navigation."
-        
+        val message = "You are on the Home Screen"
         // Speak directly with utterance ID
         if (textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, "HOME_SCREEN_INTRO") == TextToSpeech.ERROR) {
             Log.e("HomeScreen", "Error speaking welcome message")
@@ -236,24 +231,24 @@ fun HomeScreen(
 
 
 
-    // Detect gestures (Swipe Right to go back)
-    val gestureDetector = remember {
-        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                velocityX: Float,
-                velocityY: Float
-            ): Boolean {
-                if (e1 != null && e2 != null && e2.x > e1.x + 100) {
-                    navController.navigate(Routes.homeScreen)
-                    textToSpeech.speak("Going back", TextToSpeech.QUEUE_FLUSH, null, null)
-                    return true
-                }
-                return false
-            }
-        })
-    }
+//    // Detect gestures (Swipe Right to go back)
+//    val gestureDetector = remember {
+//        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+//            override fun onFling(
+//                e1: MotionEvent?,
+//                e2: MotionEvent,
+//                velocityX: Float,
+//                velocityY: Float
+//            ): Boolean {
+//                if (e1 != null && e2 != null && e2.x > e1.x + 100) {
+//                    navController.navigate(Routes.homeScreen)
+//                    textToSpeech.speak("Going back", TextToSpeech.QUEUE_FLUSH, null, null)
+//                    return true
+//                }
+//                return false
+//            }
+//        })
+//    }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -303,20 +298,20 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        lifecycleOwner.lifecycleScope.launch {
-                            sendSOSCall(context, actualUserId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
-                        }
-                        textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
-                    },
-                    onTap = {
-                        textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
-                        navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
-                    }
-                )
-            }
+//            .pointerInput(Unit) {
+//                detectTapGestures(
+//                    onDoubleTap = {
+//                        lifecycleOwner.lifecycleScope.launch {
+//                            sendSOSCall(context, actualUserId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
+//                        }
+//                        textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
+//                    },
+//                    onTap = {
+//                        textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
+//                        navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
+//                    }
+//                )
+//            }
     )
     {
         // Top Bar with Home Title and Profile Icon
