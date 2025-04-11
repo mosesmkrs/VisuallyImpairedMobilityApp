@@ -1,5 +1,6 @@
 package pages
 
+import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +26,8 @@ import androidx.navigation.NavController
 
 import coil.compose.AsyncImage
 import androidx.compose.material3.*
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.LifecycleOwner
@@ -34,6 +37,7 @@ import apis.GoogleAuthClient
 import com.example.newapp.R
 import com.example.newapp.Routes
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 
 @Composable
@@ -46,6 +50,27 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
     var userEmail by remember { mutableStateOf(googleAuthClient.getUserEmail() ?: "No Email") }
     var userPhoto by remember { mutableStateOf(googleAuthClient.getUserPhotoUrl()) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var tts = remember { TextToSpeech(context) { } }
+
+
+    // Initialize TTS
+    tts = remember{
+        TextToSpeech(context){
+                status ->
+            if(status == TextToSpeech.SUCCESS){
+                tts.language = Locale.getDefault()
+                tts.speak("You are on the Profile page", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        }
+    }
+    // Cleanup TTS when the screen is removed
+    DisposableEffect(Unit) {
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+        }
+    }
 
     Column(
         modifier = Modifier

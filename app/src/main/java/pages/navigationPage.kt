@@ -117,9 +117,9 @@ fun NavigationPage(navController: NavController) {
     tts = remember {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.US
-                tts?.speak("You are on the Navigation Page." +
-                        "Double tap on the top of the screen to enter your destination.", TextToSpeech.QUEUE_FLUSH, null, null)
+                tts?.language = Locale.getDefault()
+                tts?.speak("You are on the Navigation Page"
+                       , TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
         }
