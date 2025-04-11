@@ -2,6 +2,7 @@ package pages
 
 import android.app.Activity
 import android.app.Application
+import android.content.IntentSender
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import apis.GoogleAuthClient
 import com.example.newapp.R
@@ -143,7 +145,8 @@ fun GoogleSignInScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(top = 28.dp),
+            .padding(top = 28.dp)
+        ,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
@@ -176,6 +179,7 @@ fun GoogleSignInScreen(
         // Show error message if any
         errorMessage?.let {
             Spacer(modifier = Modifier.height(8.dp))
+
             Text(
                 text = it,
                 color = Color.Red,
