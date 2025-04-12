@@ -137,7 +137,7 @@ fun GoogleSignInScreen(
             }
         } else {
             // Speak welcome message for new users
-            speakText(tts, "Welcome to the app. Your Navigation Assistant! Double tap to sign in")
+            //speakText(tts, "Welcome to the app. Your Navigation Assistant!")
         }
     }
 

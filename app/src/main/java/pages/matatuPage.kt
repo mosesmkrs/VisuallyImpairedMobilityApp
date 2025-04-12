@@ -42,6 +42,7 @@ import apis.MatatuStop
 import apis.NearestStopResult
 import com.example.newapp.R
 import com.google.android.gms.location.*
+import components.Footer
 import kotlinx.coroutines.launch
 import okhttp3.*
 import org.json.JSONObject
@@ -596,27 +597,28 @@ fun MatatuPage(navController: NavController) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .pointerInput(Unit){
-                detectTapGestures(
-                    onDoubleTap = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                            )
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                        }
-                        voiceInputLauncher.launch(intent)
-                    })
-            }
             .navigationBarsPadding(),
+//            .pointerInput(Unit){
+//                detectTapGestures(
+//                    onDoubleTap = {
+//                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+//                            putExtra(
+//                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+//                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+//                            )
+//                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+//                        }
+//                        voiceInputLauncher.launch(intent)
+//                    })
+//            }
+
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Start
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.arrow_back_icon),
@@ -626,49 +628,16 @@ fun MatatuPage(navController: NavController) {
                     .size(32.dp)
                     .clickable { navController.popBackStack() }
             )
-
+            Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "Matatu Routes",
                 fontSize = 22.sp,
-                color = Color.Black
-            )
-
-            Text(
-                text = "Cancel",
-                fontSize = 18.sp,
                 color = Color.Black,
-                modifier = Modifier.clickable { navController.popBackStack() }
             )
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-//
-//        // Icon Row
-//        Row(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(horizontal = 16.dp)
-//                .zIndex(1f),
-//            horizontalArrangement = Arrangement.SpaceAround
-//        ) {
-//            Icon(
-//                painter = painterResource(id = R.drawable.map_icon),
-//                contentDescription = "Map",
-//                tint = Color.Black
-//            )
-//            Icon(
-//                painter = painterResource(id = R.drawable.history_icon),
-//                contentDescription = "History",
-//                tint = Color.Black
-//            )
-//            Icon(
-//                painter = painterResource(id = R.drawable.bookmark_icon),
-//                contentDescription = "Bookmarks",
-//                tint = Color.Black
-//            )
-//        }
-//
-//        Spacer(modifier = Modifier.height(12.dp))
 
         // Show error message if any
         errorMessage?.let {
@@ -700,25 +669,25 @@ fun MatatuPage(navController: NavController) {
                     }
                 }
             },
-            placeholder = { Text("Enter destination or double tap to speak") },
+            placeholder = { Text("Enter your destination") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .zIndex(1f)
-                .pointerInput(Unit){
-                    detectTapGestures(
-                        onDoubleTap = {
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
-                                putExtra(
-                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                                )
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                            }
-                            voiceInputLauncher.launch(intent)
-                        }
-                    )
-                },
+                .zIndex(1f),
+//                .pointerInput(Unit){
+//                    detectTapGestures(
+//                        onDoubleTap = {
+//                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
+//                                putExtra(
+//                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+//                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+//                                )
+//                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+//                            }
+//                            voiceInputLauncher.launch(intent)
+//                        }
+//                    )
+//                },
             shape = RoundedCornerShape(20.dp),
             trailingIcon = {
                 Button(
@@ -784,7 +753,7 @@ fun MatatuPage(navController: NavController) {
                     },
                     modifier = Modifier.padding(4.dp)
                 ) {
-                    Text("Go")
+                    Text("Find matatu route")
                 }
             }
         )
@@ -1062,8 +1031,8 @@ fun MatatuPage(navController: NavController) {
 
         //mapview
         Box(modifier = Modifier
-            .fillMaxSize()
-            .weight(1f)
+            .fillMaxWidth()
+            .size(width = 300.dp, height = 500.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
         ) {
@@ -1253,6 +1222,8 @@ fun MatatuPage(navController: NavController) {
                 }
             }, modifier = Modifier.fillMaxSize())
         }
+        Spacer(modifier = Modifier.weight(1f))
+        Footer(navController)
     }
 }
 

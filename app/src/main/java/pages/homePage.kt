@@ -227,29 +227,6 @@ fun HomeScreen(
         }
     }
 
-
-
-
-
-//    // Detect gestures (Swipe Right to go back)
-//    val gestureDetector = remember {
-//        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-//            override fun onFling(
-//                e1: MotionEvent?,
-//                e2: MotionEvent,
-//                velocityX: Float,
-//                velocityY: Float
-//            ): Boolean {
-//                if (e1 != null && e2 != null && e2.x > e1.x + 100) {
-//                    navController.navigate(Routes.homeScreen)
-//                    textToSpeech.speak("Going back", TextToSpeech.QUEUE_FLUSH, null, null)
-//                    return true
-//                }
-//                return false
-//            }
-//        })
-//    }
-
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -298,20 +275,6 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-//            .pointerInput(Unit) {
-//                detectTapGestures(
-//                    onDoubleTap = {
-//                        lifecycleOwner.lifecycleScope.launch {
-//                            sendSOSCall(context, actualUserId, pCViewModel, sCViewModel, textToSpeech, googleAuthClient)
-//                        }
-//                        textToSpeech.speak("Opening SOS Emergency", TextToSpeech.QUEUE_FLUSH, null, null)
-//                    },
-//                    onTap = {
-//                        textToSpeech.speak("Starting navigation", TextToSpeech.QUEUE_FLUSH, null, null)
-//                        navController.navigate(Routes.navigationPage) // Replace with your actual navigation route
-//                    }
-//                )
-//            }
     )
     {
         // Top Bar with Home Title and Profile Icon
@@ -400,9 +363,9 @@ fun checkGpsStatus(context: Context): Boolean {
 fun NavigationOptionsGrid(navController: NavController) {
     val options = listOf(
         Triple("Start Navigation", R.drawable.navigate_icon, Routes.navigationPage),
-        Triple("Matatu Routes", R.drawable.bus_icon, Routes.MatatuPage),
+        Triple("Find Matatu Routes", R.drawable.bus_icon, Routes.MatatuPage),
 //        Triple("Object Recognition", R.drawable.recog_icon, Routes.navigationPage),
-        Triple("Offline Maps", R.drawable.map_icon, Routes.offlineMapPage)
+  //      Triple("Offline Maps", R.drawable.map_icon, Routes.offlineMapPage)
     )
 
     LazyVerticalGrid(
@@ -475,7 +438,7 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isGpsEnabled) "GPS Connected" else "GPS is OFF",
+                        text = if (isGpsEnabled) "Your Phone is connected to GPS" else "Your phone GPS is OFF",
                         fontSize = 16.sp
                     )
                 }
@@ -491,61 +454,10 @@ fun StatusAndAlertsUI(isGpsEnabled: Boolean, ringerStatus: String) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(ringerStatus, fontSize = 16.sp)
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(id = R.drawable.smartphone_icon),
-                        contentDescription = "Haptic Icon",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Haptic Feedback On", fontSize = 16.sp)
-                }
             }
         }
-//
-//        Spacer(modifier = Modifier.height(24.dp))
-//
-//        // Nearby Alerts Section
-//        Text(
-//            text = "Nearby Alerts",
-//            fontSize = 20.sp,
-//            fontWeight = FontWeight.Bold,
-//            color = Color.Black
-//        )
-//        Spacer(modifier = Modifier.height(12.dp))
-
-        // Alert Cards
-//        val alerts = listOf(
-//            Pair("Crosswalk ahead - 20m", R.drawable.cross_icon),
-//            Pair("Construction work - 50m", R.drawable.construction_icon)
-//        )
-//
-//        alerts.forEach { (text, iconRes) ->
-//            Card(
-//                modifier = Modifier.fillMaxWidth(),
-//                shape = RoundedCornerShape(12.dp),
-//                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-//                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
-//            ) {
-//                Row(
-//                    modifier = Modifier.padding(16.dp),
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    Image(
-//                        painter = painterResource(id = iconRes),
-//                        contentDescription = text,
-//                        modifier = Modifier.size(20.dp)
-//                    )
-//                    Spacer(modifier = Modifier.width(8.dp))
-//                    Text(text, fontSize = 16.sp)
-//                }
-//            }
-//            Spacer(modifier = Modifier.height(12.dp))
-        }
     }
+}
 
 
 @SuppressLint("MissingPermission")

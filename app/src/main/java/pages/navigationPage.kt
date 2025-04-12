@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -65,6 +66,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import components.Footer
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -186,32 +188,6 @@ fun NavigationPage(navController: NavController) {
             }
         }
     }
-//
-//    val gestureDetector = Modifier.pointerInput(Unit) {
-//        detectHorizontalDragGestures { _, dragAmount ->
-//            if (dragAmount > 100) { // Swipe Right: Move to the next tab
-//                selectedTab = when (selectedTab) {
-//                    0 -> 1 // Maps → History
-//                    1 -> 2 // History → Saved Sites
-//                    else -> 2 // Stay on Saved Sites (no further right navigation)
-//                }
-//            } else if (dragAmount < -100) { // Swipe Left: Move to the previous tab
-//                selectedTab = when (selectedTab) {
-//                    2 -> 1 // Saved Sites → History
-//                    1 -> 0 // History → Maps
-//                    else -> 0 // Stay on Maps (no further left navigation)
-//                }
-//            }
-//
-//            // Announce the switched tab
-//            val tabName = when (selectedTab) {
-//                0 -> "Maps"
-//                1 -> "History"
-//                else -> "Saved Sites"
-//            }
-//            tts!!.speak("Switched to $tabName", TextToSpeech.QUEUE_FLUSH, null, null)
-//        }
-//    }
 
 
     fun fetchRoute(
@@ -355,79 +331,42 @@ fun NavigationPage(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
             .navigationBarsPadding()
-           // .then(gestureDetector)
-            .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(
-                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                        )
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                    }
-                    voiceInputLauncher.launch(intent)
-                })
-            }
-            .navigationBarsPadding(),
+//            .pointerInput(Unit) {
+//                detectTapGestures(onDoubleTap = {
+//                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+//                        putExtra(
+//                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+//                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+//                        )
+//                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+//                    }
+//                    voiceInputLauncher.launch(intent)
+//                })
+//            }
     ) {
-//        Row(
-//            verticalAlignment = Alignment.CenterVertically,
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(16.dp),
-//            horizontalArrangement = Arrangement.SpaceBetween
-//        ) {
-//            Icon(
-//                painter = painterResource(id = R.drawable.arrow_back_icon),
-//                contentDescription = "Back",
-//                tint = Color.Black,
-//                modifier = Modifier
-//                    .size(32.dp)
-//                    .clickable { navController.popBackStack() }
-//            )
-//
-//            Text(
-//                text = "Navigate",
-//                fontSize = 22.sp,
-//                color = Color.Black
-//            )
-//
-//            Text(
-//                text = "Cancel",
-//                fontSize = 18.sp,
-//                color = Color.Black,
-//                modifier = Modifier.clickable { navController.popBackStack() }
-//            )
-//        }
-//
-//        Spacer(modifier = Modifier.height(12.dp))
-//
-//        // Icon Row
-//        Row(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(horizontal = 16.dp)
-//                .zIndex(1f),
-//            horizontalArrangement = Arrangement.SpaceAround
-//        ) {
-//            Icon(
-//                painter = painterResource(id = R.drawable.map_icon),
-//                contentDescription = "Map",
-//                tint = Color.Black
-//            )
-//            Icon(
-//                painter = painterResource(id = R.drawable.history_icon),
-//                contentDescription = "History",
-//                tint = Color.Black
-//            )
-//            Icon(
-//                painter = painterResource(id = R.drawable.bookmark_icon),
-//                contentDescription = "Bookmarks",
-//                tint = Color.Black
-//            )
-//        }
-
-        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.Start
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.arrow_back_icon),
+                contentDescription = "Back",
+                tint = Color.Black,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clickable { navController.popBackStack() }
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "Navigation Page",
+                fontSize = 22.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.weight(1f))
+        }
         // Show error message if any
         errorMessage?.let {
             Text(
@@ -441,7 +380,7 @@ fun NavigationPage(navController: NavController) {
         OutlinedTextField(
             value = destinationText,
             onValueChange = { destinationText = it },
-            placeholder = { Text("Enter destination") },
+            placeholder = { Text("Enter your destination") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -493,7 +432,6 @@ fun NavigationPage(navController: NavController) {
 
                                         // Speak the destination details
                                         tts!!.speak("Destination set to $destinationText, $distance away, Estimated Time is $duration. Follow these instructions.....", TextToSpeech.QUEUE_FLUSH, params)
-//                                        tts!!.speak("Destination set to $destinationText, $distance away, Estimated Time is $duration. Follow these instructions.....", TextToSpeech.QUEUE_FLUSH, null, null)
 //                                        tripInstructions = instructions
 
                                     }
@@ -510,7 +448,7 @@ fun NavigationPage(navController: NavController) {
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White)
                     }else{
-                        Text("Go")
+                        Text("Start Navigation")
                     }
 
                 }
@@ -529,7 +467,7 @@ fun NavigationPage(navController: NavController) {
                                 )
 
                                 Text(
-                                    text = "ETA: $tripDuration",
+                                    text = "Estimated Time of Arrival: $tripDuration",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.Blue
@@ -555,13 +493,14 @@ fun NavigationPage(navController: NavController) {
                         },
                         confirmButton = {
                             Button(onClick = { showTripDetails = false }) {
-                               Text("Close")
+                               Text("Close trip details")
                             }
                         }
                     )
                 }
             }
         )
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Pop-up alert dialog
         if (showDialog) {
@@ -587,11 +526,10 @@ fun NavigationPage(navController: NavController) {
 
 
         Box(modifier = Modifier
-            .fillMaxSize()
-            .weight(1f)
+            .fillMaxWidth()
+            .size(width = 300.dp, height = 500.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
-
         ) {
             AndroidView(factory = { ctx ->
                 MapView(ctx).apply {
@@ -632,6 +570,8 @@ fun NavigationPage(navController: NavController) {
                 }
             }, modifier = Modifier.fillMaxSize())
         }
+        Spacer(modifier = Modifier.weight(1f))
+        Footer(navController)
     }
 }
 
