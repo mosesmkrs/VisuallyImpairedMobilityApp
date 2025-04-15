@@ -31,6 +31,8 @@ import pages.ProfilePage
 import pages.SecondaryContactForm
 import java.util.Locale
 
+
+
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private lateinit var googleAuthClient: GoogleAuthClient
     private lateinit var textToSpeech: TextToSpeech
