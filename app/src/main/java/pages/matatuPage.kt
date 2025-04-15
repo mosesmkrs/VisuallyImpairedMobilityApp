@@ -46,6 +46,7 @@ import components.Footer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
@@ -54,6 +55,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -135,16 +137,95 @@ fun MatatuPage(navController: NavController) {
     }
 
     // Function to fetch walking route
+//    fun fetchWalkingRoute(
+//        start: GeoPoint,
+//        end: GeoPoint,
+//        onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
+//    ) {
+////        val apiKey = "456b9753-702c-48ca-91d4-1c21e1b015a9" // Replace with your GraphHopper API Key
+////        val url = "https://graphhopper.com/api/1/route?point=${start.latitude},${start.longitude}&point=${end.latitude},${end.longitude}&profile=foot&points_encoded=false&instructions=true&key=$apiKey"
+//        val url = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
+//        val client = OkHttpClient()
+//        val request = Request.Builder().url(url).build()
+//
+//        client.newCall(request).enqueue(object : Callback {
+//            override fun onFailure(call: Call, e: IOException) {
+//                Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
+//            }
+//
+//            override fun onResponse(call: Call, response: Response) {
+//                response.body?.let { responseBody ->
+//                    val json = JSONObject(responseBody.string())
+//
+//                    if (!json.has("paths") || json.getJSONArray("paths").length() == 0) {
+//                        Log.e("ROUTE_ERROR", "No route found.")
+//                        return
+//                    }
+//
+//                    val path = json.getJSONArray("paths").getJSONObject(0)
+//                    val distanceMeters = path.getDouble("distance")
+//                    val timeMillis = path.getDouble("time")
+//
+//                    val distanceKm = distanceMeters / 1000.0
+//                    val durationMin = timeMillis / (1000.0 * 60.0)
+//
+//                    val formattedDistance = String.format("%.2f Km", distanceKm)
+//                    val formattedDuration = String.format("%.2f Minutes", durationMin)
+//
+//                    // Extract route points
+//                    val coordinates = path.getJSONObject("points").getJSONArray("coordinates")
+//                    val routePoints = mutableListOf<GeoPoint>()
+//                    for (i in 0 until coordinates.length()) {
+//                        val point = coordinates.getJSONArray(i)
+//                        routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
+//                    }
+//
+//                    // Extract step-by-step walking directions
+//                    val instructionsArray = path.getJSONArray("instructions")
+//                    val instructions = mutableListOf<String>()
+//                    for (i in 0 until instructionsArray.length()) {
+//                        val step = instructionsArray.getJSONObject(i)
+//                        val text = step.getString("text")
+//                        val distance = step.getDouble("distance") / 1000.0
+//                        val formattedStep = "$text (${String.format("%.2f Km", distance)})"
+//                        instructions.add(formattedStep)
+//                    }
+//
+//                    onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
+//                }
+//            }
+//        })
+//    }
+
     fun fetchWalkingRoute(
         start: GeoPoint,
         end: GeoPoint,
         onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
     ) {
-        val apiKey = "456b9753-702c-48ca-91d4-1c21e1b015a9" // Replace with your GraphHopper API Key
-        val url = "https://graphhopper.com/api/1/route?point=${start.latitude},${start.longitude}&point=${end.latitude},${end.longitude}&profile=foot&points_encoded=false&instructions=true&key=$apiKey"
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
 
-        val client = OkHttpClient()
-        val request = Request.Builder().url(url).build()
+        val coordinates = "[${start.longitude},${start.latitude}],[${end.longitude},${end.latitude}]"
+        val url = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
+
+        val requestBody = """
+            {
+                "coordinates": [$coordinates],
+                "instructions": true,
+                "language": "en",
+                "units": "m",
+                "geometry_simplify": true
+            }
+        """.trimIndent()
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "5b3ce3597851110001cf6248178595cb660342ec99701892a1530215")
+            .addHeader("Content-Type", "application/json")
+            .post(RequestBody.create("application/json".toMediaType(), requestBody))
+            .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -153,48 +234,64 @@ fun MatatuPage(navController: NavController) {
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.let { responseBody ->
-                    val json = JSONObject(responseBody.string())
+                    try {
+                        val json = JSONObject(responseBody.string())
+                        val features = json.getJSONArray("features")
+                        if (features.length() > 0) {
+                            val feature = features.getJSONObject(0)
+                            val properties = feature.getJSONObject("properties")
+                            val summary = properties.getJSONObject("summary")
 
-                    if (!json.has("paths") || json.getJSONArray("paths").length() == 0) {
-                        Log.e("ROUTE_ERROR", "No route found.")
-                        return
+                            // Get the exact distance from the API response (in meters)
+                            val distanceMeters = summary.getDouble("distance")
+                            val durationMinutes = summary.getDouble("duration") / 60
+
+                            val formattedDistance = formatDistance(distanceMeters)
+                            val formattedDuration = formatDuration(durationMinutes)
+
+                            // Extract route points
+                            val geometry = feature.getJSONObject("geometry")
+                            val coordinates = geometry.getJSONArray("coordinates")
+                            val routePoints = mutableListOf<GeoPoint>()
+
+                            for (i in 0 until coordinates.length()) {
+                                val point = coordinates.getJSONArray(i)
+                                routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
+                            }
+
+                            // Extract step-by-step instructions with accurate distances
+                            val segments = properties.getJSONArray("segments")
+                            val steps = segments.getJSONObject(0).getJSONArray("steps")
+                            val instructions = mutableListOf<String>()
+
+                            for (i in 0 until steps.length()) {
+                                val step = steps.getJSONObject(i)
+                                val instruction = step.getString("instruction")
+                                val stepDistance = step.getDouble("distance")
+                                instructions.add("$instruction (${formatDistance(stepDistance)})")
+                            }
+
+                            onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
+
+                            checkRouteAlerts(routePoints) { alerts ->
+                                if (alerts.isNotEmpty()) {
+                                    val alertMessage = alerts.joinToString("\n") { it.description }
+                                    tts?.speak(
+                                        "Route alerts: $alertMessage",
+                                        TextToSpeech.QUEUE_ADD,
+                                        null,
+                                        null
+                                    )
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ROUTE_ERROR", "Error parsing response: ${e.message}")
                     }
-
-                    val path = json.getJSONArray("paths").getJSONObject(0)
-                    val distanceMeters = path.getDouble("distance")
-                    val timeMillis = path.getDouble("time")
-
-                    val distanceKm = distanceMeters / 1000.0
-                    val durationMin = timeMillis / (1000.0 * 60.0)
-
-                    val formattedDistance = String.format("%.2f Km", distanceKm)
-                    val formattedDuration = String.format("%.2f Minutes", durationMin)
-
-                    // Extract route points
-                    val coordinates = path.getJSONObject("points").getJSONArray("coordinates")
-                    val routePoints = mutableListOf<GeoPoint>()
-                    for (i in 0 until coordinates.length()) {
-                        val point = coordinates.getJSONArray(i)
-                        routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
-                    }
-
-                    // Extract step-by-step walking directions
-                    val instructionsArray = path.getJSONArray("instructions")
-                    val instructions = mutableListOf<String>()
-                    for (i in 0 until instructionsArray.length()) {
-                        val step = instructionsArray.getJSONObject(i)
-                        val text = step.getString("text")
-                        val distance = step.getDouble("distance") / 1000.0
-                        val formattedStep = "$text (${String.format("%.2f Km", distance)})"
-                        instructions.add(formattedStep)
-                    }
-
-                    onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
                 }
             }
         })
     }
-
     // Helper function to create matatu directions
     fun createMatatuDirections(
         routeName: String,
