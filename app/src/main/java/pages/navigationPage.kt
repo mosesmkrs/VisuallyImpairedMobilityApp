@@ -1,5 +1,14 @@
 package pages
 
+// Add these imports at the top
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.*
+import kotlin.math.roundToInt
+import apis.GtfsDataHandler
+import apis.GtfsLocation
+import org.json.JSONArray
+import okhttp3.*
+import java.util.concurrent.TimeUnit
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
@@ -21,20 +30,29 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -84,6 +102,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.coroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.ButtonDefaults
+import coil.util.CoilUtils.result
 
 
 data class Alert(
@@ -96,7 +123,9 @@ data class Alert(
 
 @Composable
 fun NavigationPage(navController: NavController) {
+    // Add these state variables at the top of NavigationPage composable
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var destinationLocation by remember { mutableStateOf<GeoPoint?>(null) }
@@ -114,14 +143,73 @@ fun NavigationPage(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var alerts by remember { mutableStateOf(listOf<Alert>()) }
     var showDialog by remember { mutableStateOf(false) }
+    val gtfsDataHandler = remember { GtfsDataHandler(context) }
+    var locationSuggestions by remember { mutableStateOf<List<GtfsLocation>>(emptyList()) }
+    var showSuggestions by remember { mutableStateOf(false) }
+    var routeAlerts by remember { mutableStateOf<List<ORSAlert>>(emptyList()) }
+    var showAlertDialog by remember { mutableStateOf(false) }
+    var isNavigating by remember { mutableStateOf(false) }
+    var currentStepIndex by remember { mutableStateOf(0) }
+    var nextStepDistance by remember { mutableStateOf<String?>(null) }
+    var lastAnnouncedStep by remember { mutableStateOf(-1) }
+    var showDirectionsPanel by remember { mutableStateOf(false) }
+    var currentDirectionIndex by remember { mutableStateOf(0) }
 
+    // Function to update navigation - move inside NavigationPage
+    fun updateNavigation(currentLocation: GeoPoint) {
+        if (!isNavigating || routePoints.isEmpty() || tripInstructions.isEmpty()) return
+
+        // Find the closest point on the route
+        var minDistance = Double.MAX_VALUE
+        var closestPointIndex = 0
+
+        routePoints.forEachIndexed { index, point ->
+            val distance = calculateDistance(currentLocation, point)
+            if (distance < minDistance) {
+                minDistance = distance
+                closestPointIndex = index
+            }
+        }
+
+        // Update current step based on progress
+        val newStepIndex = (closestPointIndex * tripInstructions.size / routePoints.size)
+            .coerceIn(0, tripInstructions.size - 1)
+
+        if (newStepIndex != currentStepIndex) {
+            currentStepIndex = newStepIndex
+
+            // Announce new step if we haven't announced it yet
+            if (currentStepIndex > lastAnnouncedStep) {
+                val currentInstruction = tripInstructions[currentStepIndex]
+                tts?.speak(currentInstruction, TextToSpeech.QUEUE_FLUSH, null, null)
+                lastAnnouncedStep = currentStepIndex
+            }
+        }
+
+        // Calculate distance to next step
+        if (currentStepIndex < tripInstructions.size - 1) {
+            val nextStepPoint = routePoints[((currentStepIndex + 1) * routePoints.size / tripInstructions.size)
+                .coerceIn(0, routePoints.size - 1)]
+            val distanceToNext = calculateDistance(currentLocation, nextStepPoint)
+            nextStepDistance = formatDistance(distanceToNext)
+        }
+
+        // Check if we've reached the destination
+        if (minDistance < 20 && currentStepIndex >= tripInstructions.size - 1) {
+            tts?.speak("You have reached your destination", TextToSpeech.QUEUE_FLUSH, null, null)
+            isNavigating = false
+            currentStepIndex = 0
+            lastAnnouncedStep = -1
+            nextStepDistance = null
+        }
+    }
 
     tts = remember {
         TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.getDefault()
                 tts?.speak("You are on the navigation Page"
-                       , TextToSpeech.QUEUE_FLUSH, null, null)
+                    , TextToSpeech.QUEUE_FLUSH, null, null)
             }
 
         }
@@ -167,10 +255,14 @@ fun NavigationPage(navController: NavController) {
         }
     }
 
-    // Start tracking user location in real time
-    LaunchedEffect(Unit) {
+    // Update location tracking
+    LaunchedEffect(isNavigating) {
         fetchUserLocation(context, fusedLocationClient) { location ->
             userLocation = location
+
+            if (isNavigating) {
+                updateNavigation(location)
+            }
 
             if (routePoints.isNotEmpty() && tripInstructions.isNotEmpty()) {
                 val newInstruction = getClosestInstruction(location, routePoints, tripInstructions)
@@ -189,17 +281,44 @@ fun NavigationPage(navController: NavController) {
         }
     }
 
+    // Initialize GTFS data
+    LaunchedEffect(Unit) {
+        try {
+            gtfsDataHandler.initialize()
+        } catch (e: Exception) {
+            Log.e("NavigationPage", "Error initializing GTFS data: ${e.message}")
+        }
+    }
 
-    fun fetchRoute(
+    fun fetchRouteORS(
         start: GeoPoint,
         end: GeoPoint,
         onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
     ) {
-        val apiKey = "456b9753-702c-48ca-91d4-1c21e1b015a9"
-        val url = "https://graphhopper.com/api/1/route?point=${start.latitude},${start.longitude}&point=${end.latitude},${end.longitude}&profile=foot&points_encoded=false&key=$apiKey"
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
 
-        val client = OkHttpClient()
-        val request = Request.Builder().url(url).build()
+        val coordinates = "[${start.longitude},${start.latitude}],[${end.longitude},${end.latitude}]"
+        val url = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
+
+        val requestBody = """
+            {
+                "coordinates": [$coordinates],
+                "instructions": true,
+                "language": "en",
+                "units": "m",
+                "geometry_simplify": true
+            }
+        """.trimIndent()
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "5b3ce3597851110001cf6248178595cb660342ec99701892a1530215")
+            .addHeader("Content-Type", "application/json")
+            .post(RequestBody.create("application/json".toMediaType(), requestBody))
+            .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -208,41 +327,60 @@ fun NavigationPage(navController: NavController) {
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.let { responseBody ->
-                    val json = JSONObject(responseBody.string())
+                    try {
+                        val json = JSONObject(responseBody.string())
+                        val features = json.getJSONArray("features")
+                        if (features.length() > 0) {
+                            val feature = features.getJSONObject(0)
+                            val properties = feature.getJSONObject("properties")
+                            val summary = properties.getJSONObject("summary")
 
-                    if (!json.has("paths") || json.getJSONArray("paths").length() == 0) {
-                        Log.e("ROUTE_ERROR", "No route found.")
-                        return
+                            // Get the exact distance from the API response (in meters)
+                            val distanceMeters = summary.getDouble("distance")
+                            val durationMinutes = summary.getDouble("duration") / 60
+
+                            val formattedDistance = formatDistance(distanceMeters)
+                            val formattedDuration = formatDuration(durationMinutes)
+
+                            // Extract route points
+                            val geometry = feature.getJSONObject("geometry")
+                            val coordinates = geometry.getJSONArray("coordinates")
+                            val routePoints = mutableListOf<GeoPoint>()
+
+                            for (i in 0 until coordinates.length()) {
+                                val point = coordinates.getJSONArray(i)
+                                routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
+                            }
+
+                            // Extract step-by-step instructions with accurate distances
+                            val segments = properties.getJSONArray("segments")
+                            val steps = segments.getJSONObject(0).getJSONArray("steps")
+                            val instructions = mutableListOf<String>()
+
+                            for (i in 0 until steps.length()) {
+                                val step = steps.getJSONObject(i)
+                                val instruction = step.getString("instruction")
+                                val stepDistance = step.getDouble("distance")
+                                instructions.add("$instruction (${formatDistance(stepDistance)})")
+                            }
+
+                            onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
+
+                            checkRouteAlerts(routePoints) { alerts ->
+                                if (alerts.isNotEmpty()) {
+                                    val alertMessage = alerts.joinToString("\n") { it.description }
+                                    tts?.speak(
+                                        "Route alerts: $alertMessage",
+                                        TextToSpeech.QUEUE_ADD,
+                                        null,
+                                        null
+                                    )
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ROUTE_ERROR", "Error parsing response: ${e.message}")
                     }
-
-                    val path = json.getJSONArray("paths").getJSONObject(0)
-                    val distanceMeters = path.getDouble("distance")
-                    val timeMillis = path.getDouble("time")
-
-                    val distanceKm = distanceMeters / 1000.0
-                    val durationMin = timeMillis / (1000.0 * 60.0)
-
-                    val formattedDistance = String.format("%.2f Km", distanceKm)
-                    val formattedDuration = String.format("%.2f Minutes", durationMin)
-
-                    val coordinates = path.getJSONObject("points").getJSONArray("coordinates")
-                    val routePoints = mutableListOf<GeoPoint>()
-                    for (i in 0 until coordinates.length()) {
-                        val point = coordinates.getJSONArray(i)
-                        routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
-                    }
-
-                    // Extract step-by-step walking directions
-                    val instructionsArray = path.getJSONArray("instructions")
-                    val instructions = mutableListOf<String>()
-                    for (i in 0 until instructionsArray.length()) {
-                        val step = instructionsArray.getJSONObject(i)
-                        val text = step.getString("text")
-                        val distance = step.getDouble("distance") / 1000.0
-                        val formattedStep = "$text (${String.format("%.2f Km", distance)})"
-                        instructions.add(formattedStep)
-                    }
-                    onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
                 }
             }
         })
@@ -331,18 +469,6 @@ fun NavigationPage(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
             .navigationBarsPadding()
-//            .pointerInput(Unit) {
-//                detectTapGestures(onDoubleTap = {
-//                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-//                        putExtra(
-//                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-//                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-//                        )
-//                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-//                    }
-//                    voiceInputLauncher.launch(intent)
-//                })
-//            }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -367,6 +493,9 @@ fun NavigationPage(navController: NavController) {
             )
             Spacer(modifier = Modifier.weight(1f))
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // Show error message if any
         errorMessage?.let {
             Text(
@@ -374,22 +503,37 @@ fun NavigationPage(navController: NavController) {
                 color = Color.Red,
                 fontSize = 16.sp,
                 modifier = Modifier.padding(3.dp)
-                    .zIndex(1f)
+                    //.zIndex(1f)
             )
         }
+
         OutlinedTextField(
             value = destinationText,
-            onValueChange = { destinationText = it },
-            placeholder = { Text("Enter your destination") },
+            onValueChange = { newText ->
+                destinationText = newText
+                // Get suggestions as user types
+                coroutineScope.launch {
+                    try {
+                        val suggestions = gtfsDataHandler.getSuggestions(newText)
+                        Log.d("NavigationPage", "Got ${suggestions.size} suggestions for '$newText'}")
+                        locationSuggestions = suggestions
+                        //Always show suggestions if text is not empty and at least 2 chars
+                        showSuggestions = newText.length >= 2
+                        Log.d("NavigationPage", "Show suggestions set to $showSuggestions")
+                    } catch (e: Exception) {
+                        Log.e("NavigationPage", "Error getting suggestions: ${e.message}")
+                        e.printStackTrace()
+                    }
+                }
+            },
+            placeholder = { Text("Enter destination") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
                 .zIndex(1f)
-            ,
-            shape = RoundedCornerShape(20.dp),
-            trailingIcon = {
-                Row {
-                    IconButton(onClick = {
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(
                                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -398,14 +542,11 @@ fun NavigationPage(navController: NavController) {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                         }
                         voiceInputLauncher.launch(intent)
-                    }) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.mic_icon),
-                            contentDescription = "Voice Input"
-                        )
                     }
-                }
-
+                )
+            },
+            shape = RoundedCornerShape(20.dp),
+            trailingIcon = {
                 Button(
                     onClick = {
                         isLoading = true
@@ -413,165 +554,443 @@ fun NavigationPage(navController: NavController) {
                             if (location != null) {
                                 destinationLocation = location
                                 if (userLocation != null) {
-                                    fetchRoute(userLocation!!, location) { newRoutePoints, distance, duration, instructions ->
+                                    fetchRouteORS(userLocation!!, location) { newRoutePoints, distance, duration, instructions ->
                                         routePoints = newRoutePoints
                                         tripDistance = distance
                                         tripDuration = duration
+                                        tripInstructions = instructions
                                         showTripDetails = true
-                                        errorMessage = ""
-                                        // Set up a listener for when TTS finishes speaking
-                                        val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
-                                            // After TTS finishes, load the instructions
-                                            tripInstructions = instructions
-                                        }
+                                        errorMessage = null
+                                        isLoading = false
 
-                                        // Set the listener to TTS
-                                        val params = HashMap<String, String>()
-                                        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "intro_utterance"
-                                        tts!!.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
+                                        //Update the UI
+                                        showDirectionsPanel = true
+                                        currentDirectionIndex = 0
+                                        //Announce the Result
+                                        val announcement = "Found Route to your destination" +
+                                                "Distance: $distance, Duration: $duration"
+                                        tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
 
-                                        // Speak the destination details
-                                        tts!!.speak("Destination set to $destinationText, $distance away, Estimated Time is $duration. Follow these instructions.....", TextToSpeech.QUEUE_FLUSH, params)
-//                                        tripInstructions = instructions
-
+                                        //Only announce we found a route and read first direction
+                                        readRouteAnnouncement(tts!!)
+                                        currentDirectionIndex = 0
                                     }
                                 }
-                            }else{
-                                errorMessage = "Invalid destination. Please enter a valid location."
-                                tts!!.speak("Invalid destination. Please enter a valid location.", TextToSpeech.QUEUE_FLUSH, null, null)
+                            } else {
+                                errorMessage = "Location not found"
+                                isLoading = false
+
                             }
-                            isLoading = false
                         }
                     },
                     modifier = Modifier.padding(4.dp)
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = Color.White)
-                    }else{
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
                         Text("Start Navigation")
                     }
-
-                }
-                if (showTripDetails) {
-                    AlertDialog(
-                        onDismissRequest = { showTripDetails = false },
-                        text = {
-                            Column(
-                                modifier = Modifier.padding(2.dp)
-                            ) {
-                                Text(
-                                    text = "Distance: $tripDistance",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Blue
-                                )
-
-                                Text(
-                                    text = "Estimated Time of Arrival: $tripDuration",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Blue
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Text(
-                                    text = "DIRECTIONS",
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Red,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                Text(
-                                    text = currentInstruction,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    color = Color.DarkGray
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            Button(onClick = { showTripDetails = false }) {
-                               Text("Close trip details")
-                            }
-                        }
-                    )
                 }
             }
         )
-        Spacer(modifier = Modifier.height(20.dp))
+        //Debug text to show suggestion state
+        Text(
+            text ="Suggestions:${if (showSuggestions) "Visible" else "Hidden"} (${locationSuggestions.size} items)",
+            color = Color.Gray,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
 
-        // Pop-up alert dialog
-        if (showDialog) {
-            AlertDialog(
-                onDismissRequest = { showDialog = false },
-                confirmButton = {
-                    TextButton(onClick = { showDialog = false }) {
-                        Text("OK")
+        // Suggestions dropdown
+        if (showSuggestions) {
+            Log.d("NavigationPage", "Rendering suggestions dropdown with ${locationSuggestions.size} items")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .heightIn(max = 200.dp)
+                    .zIndex(2f),
+                shape = RoundedCornerShape(10.dp)
+            ){
+                if (locationSuggestions.isEmpty()){
+                    // Show a message when no suggestions are available
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No matching locations found")
+                    }
+                }else{
+                    LazyColumn{
+                        items(locationSuggestions){suggestion ->
+                            SuggestionItem(
+                                suggestion = suggestion,
+                                onSuggestionSelected = {
+                                    destinationText = suggestion.name
+                                    showSuggestions = false
+
+                                    // Provide feedback that we're processing the selection
+                                    tts?.speak("Finding route to ${suggestion.name}, please wait", TextToSpeech.QUEUE_FLUSH, null, null)
+                                    errorMessage = null // Clear any previous error messages
+
+                                    // If we have coordinates for this suggestion, use them directly
+                                    if (suggestion.lat != null && suggestion.lon != null) {
+                                        val location = GeoPoint(suggestion.lat, suggestion.lon)
+                                        destinationLocation = location
+
+                                        Log.d("Navigation page", "Selected location: ${suggestion.name} at ${suggestion.lat}, ${suggestion.lon}")
+
+                                        if (userLocation != null) {
+                                            Log.d("Navigation page", "User location is available: $userLocation")
+
+                                            // Show loading indicator or message
+                                            errorMessage = "Finding route to ${suggestion.name}, please wait..."
+
+                                            isLoading = true
+                                            fetchRouteORS(userLocation!!, location) { newRoutePoints, distance, duration, instructions ->
+                                                routePoints = newRoutePoints
+                                                tripDistance = distance
+                                                tripDuration = duration
+                                                tripInstructions = instructions
+                                                showTripDetails = true
+                                                errorMessage = null
+                                                isLoading = false
+
+                                                // Update the UI
+                                                showDirectionsPanel = true
+                                                currentDirectionIndex = 0
+
+                                                // Announce the result to the user
+                                                val announcement = "Found a walking route to your destination. " +
+                                                        "Distance is $distance, estimated time is $duration"
+
+                                                tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
+
+                                                // Only announce that we found a route, then read the first direction
+                                                readRouteAnnouncement(tts!!, suggestion.name)
+                                                currentDirectionIndex = 0
+                                            }
+                                        } else {
+                                            Log.e("NavigationPage", "User location is not available")
+                                            errorMessage = "Your location is not available. Please enable location services."
+                                            tts?.speak("Your location is not available. Please enable location services.",
+                                                TextToSpeech.QUEUE_FLUSH, null, null)
+                                        }
+                                    } else {
+                                        // Otherwise, geocode the name
+                                        fetchCoordinates(suggestion.name, context) { location ->
+                                            if (location != null) {
+                                                destinationLocation = location
+                                                if (userLocation != null) {
+                                                    isLoading = true
+                                                    fetchRouteORS(userLocation!!, location) { newRoutePoints, distance, duration, instructions ->
+                                                        routePoints = newRoutePoints
+                                                        tripDistance = distance
+                                                        tripDuration = duration
+                                                        tripInstructions = instructions
+                                                        showTripDetails = true
+                                                        errorMessage = null
+                                                        isLoading = false
+
+                                                        // Update the UI
+                                                        showDirectionsPanel = true
+                                                        currentDirectionIndex = 0
+
+                                                        // Announce the result to the user
+                                                        val announcement = "Found a walking route to your destination. " +
+                                                                "Distance is $distance, estimated time is $duration"
+
+                                                        tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
+
+                                                        // Only announce that we found a route, then read the first direction
+                                                        readRouteAnnouncement(tts!!, suggestion.name)
+                                                        currentDirectionIndex = 0
+                                                    }
+                                                }
+                                            } else {
+                                                errorMessage = "Could not find coordinates for ${suggestion.name}"
+                                                tts?.speak("Could not find coordinates for ${suggestion.name}. Please try another destination.",
+                                                    TextToSpeech.QUEUE_FLUSH, null, null)
+                                            }
+                                        }
+                                    }
+
+
+                                },
+                                tts = tts
+                            )
+
+                        }
+                    }
+
+                }
+            }
+        }
+        // Directions panel
+        if (showDirectionsPanel && tripInstructions.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .zIndex(2f),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Header with summary info
+                    Text(
+                        text = "Walking Directions",
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Text(
+                        text = "Distance: $tripDistance • Duration: $tripDuration",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    // Only show the current direction
+                    if (currentDirectionIndex >= 0 && currentDirectionIndex < tripInstructions.size) {
+                        val currentDirection = tripInstructions[currentDirectionIndex]
+
+                        // Current step indicator
+                        Text(
+                            text = "Step ${currentDirectionIndex + 1} of ${tripInstructions.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        // Current direction
+                        DirectionItem(
+                            direction = currentDirection,
+                            isActive = true,
+                            onClick = {
+                                //Read current direction
+                                tts?.speak(currentDirection, TextToSpeech.QUEUE_FLUSH, null, null)
+                            }
+                        )
+                        // Read the direction automatically when it changes
+                        LaunchedEffect(currentDirectionIndex) {
+                            tts?.speak(currentDirection, TextToSpeech.QUEUE_FLUSH, null, null)
+                        }
+                    }
+
+                    // Navigation controls
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Button(
+                            onClick = {
+                                // Hide directions panel
+                                showDirectionsPanel = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray
+                            )
+                        ) {
+                            Text("Hide")
+                        }
+                    }
+                }
+            }
+        }else if (!showDirectionsPanel && tripInstructions.isNotEmpty()) {
+            // Show Instructions button when panel is hidden
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .zIndex(2f),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                Button(
+                    onClick = {
+                        showDirectionsPanel = true
+                    }
+                ) {
+                    Text("Show Instructions")
+                }
+            }
+        }
+
+
+
+
+        // Map Box
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .size(width = 300.dp, height = 500.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
+        ) {
+            // Map View
+            AndroidView(
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        Configuration.getInstance()
+                            .load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+                        controller.setZoom(18.0)
                     }
                 },
-                title = { Text("Nearby Alerts") },
+                update = { mapView ->
+                    userLocation?.let { location ->
+                        mapView.controller.setCenter(location)
+                        mapView.overlays.clear()
+
+                        val userMarker = Marker(mapView).apply {
+                            position = location
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            title = "You are here"
+                        }
+                        mapView.overlays.add(userMarker)
+
+                        destinationLocation?.let { destination ->
+                            val destinationMarker = Marker(mapView).apply {
+                                position = destination
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                title = "Destination"
+                            }
+                            mapView.overlays.add(destinationMarker)
+                        }
+
+                        if (routePoints.isNotEmpty()) {
+                            val polyline = Polyline().apply {
+                                setPoints(routePoints)
+                                color = Color.Blue.hashCode()
+                                width = 5f
+                            }
+                            mapView.overlays.add(polyline)
+                        }
+                        mapView.invalidate()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (showTripDetails) {
+                            Modifier.height(300.dp)
+                        } else {
+                            Modifier.fillMaxHeight()
+                        }
+                    )
+            )
+
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+        Footer(navController)
+
+        if (showSuggestions && locationSuggestions.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .offset(y = (-8).dp)
+                    .zIndex(3f),
+                shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .heightIn(max = 200.dp)
+                        .background(Color.White)
+                ) {
+                    items(locationSuggestions) { suggestion ->
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        destinationText = suggestion.name
+                                        showSuggestions = false
+
+                                        // If we have coordinates for this suggestion, use them directly
+                                        if (suggestion.lat != null && suggestion.lon != null) {
+                                            val location = GeoPoint(suggestion.lat, suggestion.lon)
+                                            destinationLocation = location
+
+                                            if (userLocation != null) {
+                                                isLoading = true
+                                                fetchRouteORS(userLocation!!, location) { newRoutePoints, distance, duration, instructions ->
+                                                    routePoints = newRoutePoints
+                                                    tripDistance = distance
+                                                    tripDuration = duration
+                                                    tripInstructions = instructions
+                                                    showTripDetails = true
+                                                    errorMessage = null
+                                                    isLoading = false
+
+                                                    // Announce route details via TTS
+                                                    tts?.speak(
+                                                        "Route found to ${suggestion.name}. Distance is $distance, estimated time is $duration",
+                                                        TextToSpeech.QUEUE_FLUSH,
+                                                        null,
+                                                        null
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.location),
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Text(
+                                    text = suggestion.name,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                            if (locationSuggestions.last() != suggestion) {
+                                Divider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = Color.LightGray
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add the alert dialog
+        if (showAlertDialog) {
+            AlertDialog(
+                onDismissRequest = { showAlertDialog = false },
+                title = { Text("Route Alerts") },
                 text = {
                     Column {
-                        alerts.forEach { alert ->
-                            Text("⚠️ ${alert.type} - ${alert.distance.roundToInt()} meters away")
-                            Spacer(modifier = Modifier.height(8.dp))
+                        routeAlerts.forEach { alert ->
+                            Text(
+                                "⚠️ ${alert.description}",
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Divider()
                         }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showAlertDialog = false }) {
+                        Text("OK")
                     }
                 }
             )
         }
-
-
-
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .size(width = 300.dp, height = 500.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
-        ) {
-            AndroidView(factory = { ctx ->
-                MapView(ctx).apply {
-                    Configuration.getInstance()
-                        .load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-                    controller.setZoom(18.0)
-                }
-            }, update = { mapView ->
-                userLocation?.let { location ->
-                    mapView.controller.setCenter(location)
-                    mapView.overlays.clear()
-
-                    val userMarker = Marker(mapView).apply {
-                        position = location
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        title = "You are here"
-                    }
-                    mapView.overlays.add(userMarker)
-
-                    destinationLocation?.let { destination ->
-                        val destinationMarker = Marker(mapView).apply {
-                            position = destination
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            title = "Destination"
-                        }
-                        mapView.overlays.add(destinationMarker)
-                    }
-
-                    if (routePoints.isNotEmpty()) {
-                        val polyline = Polyline().apply {
-                            setPoints(routePoints)
-                            color = Color.Blue.hashCode()
-                            width = 5f
-                        }
-                        mapView.overlays.add(polyline)
-                    }
-                    mapView.invalidate()
-                }
-            }, modifier = Modifier.fillMaxSize())
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        Footer(navController)
     }
 }
 
@@ -749,3 +1168,93 @@ fun calculateDistances(userLat: Double, userLon: Double, alertLat: Double, alert
 
     return userLocation.distanceTo(alertLocation)
 }
+
+// Add new data class for ORS alerts
+data class ORSAlert(
+    val type: String,
+    val location: GeoPoint,
+    val distance: Double,
+    val description: String
+)
+
+// Function to check for alerts along the route
+fun checkRouteAlerts(
+    routePoints: List<GeoPoint>,
+    onAlertsFound: (List<ORSAlert>) -> Unit
+) {
+    val alerts = mutableListOf<ORSAlert>()
+
+    // Check for steep inclines
+    for (i in 0 until routePoints.size - 1) {
+        val point1 = routePoints[i]
+        val point2 = routePoints[i + 1]
+
+        // Calculate distance and elevation change
+        val distance = calculateDistance(point1, point2)
+        if (distance > 50) { // Alert for segments longer than 50m
+            alerts.add(ORSAlert(
+                type = "Long Segment",
+                location = point1,
+                distance = distance,
+                description = "Long walking segment ahead (${String.format("%.0f", distance)}m)"
+            ))
+        }
+    }
+
+    // Add crossing points alerts
+    routePoints.forEachIndexed { index, point ->
+        if (index > 0 && index < routePoints.size - 1) {
+            val prevPoint = routePoints[index - 1]
+            val nextPoint = routePoints[index + 1]
+
+            // Check for sharp turns (potential crossings)
+            val angle = calculateAngle(prevPoint, point, nextPoint)
+            if (angle > 60) {
+                alerts.add(ORSAlert(
+                    type = "Crossing",
+                    location = point,
+                    distance = 0.0,
+                    description = "Potential crossing point ahead"
+                ))
+            }
+        }
+    }
+
+    onAlertsFound(alerts)
+}
+
+// Helper function to calculate angle between three points
+fun calculateAngle(p1: GeoPoint, p2: GeoPoint, p3: GeoPoint): Double {
+    val angle1 = Math.atan2(p1.latitude - p2.latitude, p1.longitude - p2.longitude)
+    val angle2 = Math.atan2(p3.latitude - p2.latitude, p3.longitude - p2.longitude)
+    var angle = Math.toDegrees(Math.abs(angle1 - angle2))
+    if (angle > 180) angle = 360 - angle
+    return angle
+}
+
+fun formatDistance(distanceInMeters: Double): String {
+    return when {
+        distanceInMeters < 1000 -> "${distanceInMeters.roundToInt()} m"
+        else -> String.format("%.2f km", distanceInMeters / 1000)
+    }
+}
+
+fun formatDuration(durationInMinutes: Double): String {
+    return when {
+        durationInMinutes < 60 -> "${durationInMinutes.roundToInt()} minutes"
+        else -> {
+            val hours = (durationInMinutes / 60).toInt()
+            val minutes = (durationInMinutes % 60).roundToInt()
+            if (minutes > 0) {
+                "$hours hours $minutes minutes"
+            } else {
+                "$hours hours"
+            }
+        }
+    }
+}
+
+fun calculateDistanceToNextStep(userLocation: GeoPoint, stepPoint: GeoPoint): Double {
+    return calculateDistance(userLocation, stepPoint)
+}
+
