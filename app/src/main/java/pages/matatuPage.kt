@@ -532,19 +532,23 @@ fun MatatuPage(navController: NavController) {
         // Cancel the repeating announcement now that we have the route
         routeFindingJob.cancel()
         
+        // Set up a listener for when TTS finishes speaking
+        val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
+            // After TTS finishes, load the instructions
+            onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
+        }
+
+        // Set the listener to TTS
+        val params = HashMap<String, String>()
+        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "route_found_utterance"
+        tts?.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
+
         // Make the final announcement before calling the callback
         tts?.speak(
             "Route to ${destinationStop.name} is found. Follow these instructions.",
             TextToSpeech.QUEUE_FLUSH,
-            null,
-            null
+            params
         )
-        
-        // Add a delay using playSilentUtterance before starting the directions
-        tts?.playSilentUtterance(3000, TextToSpeech.QUEUE_ADD, null)
-        
-        // Call the callback with the results
-        onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
     }
 
     // Function to fetch coordinates from a location name

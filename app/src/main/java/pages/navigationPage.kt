@@ -111,6 +111,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ButtonDefaults
 import coil.util.CoilUtils.result
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 
 
 data class Alert(
@@ -154,6 +156,10 @@ fun NavigationPage(navController: NavController) {
     var lastAnnouncedStep by remember { mutableStateOf(-1) }
     var showDirectionsPanel by remember { mutableStateOf(false) }
     var currentDirectionIndex by remember { mutableStateOf(0) }
+
+    // Add these at the top of the NavigationPage composable
+    val repeatingAnnouncementScope = rememberCoroutineScope()
+    var routeFindingJob: Job? by remember { mutableStateOf(null) }
 
     // Function to update navigation - move inside NavigationPage
     fun updateNavigation(currentLocation: GeoPoint) {
@@ -295,6 +301,34 @@ fun NavigationPage(navController: NavController) {
         end: GeoPoint,
         onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
     ) {
+        // Start the repeating announcement
+        val routeFindingJob = repeatingAnnouncementScope.launch {
+            try {
+                // Initial announcement
+                Log.d("NavigationPage", "Starting repeating announcement for route finding")
+                tts?.speak(
+                    "Finding route to $destinationText, please wait",
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    null
+                )
+                
+                // Repeat every 6 seconds until cancelled
+                while (isActive) {
+                    kotlinx.coroutines.delay(6000) // Wait 6 seconds
+                    Log.d("NavigationPage", "Repeating announcement for route finding")
+                    tts?.speak(
+                        "Finding route to $destinationText, please wait",
+                        TextToSpeech.QUEUE_FLUSH,
+                        null,
+                        null
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("NavigationPage", "Error in repeating announcement: ${e.message}")
+            }
+        }
+
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -323,6 +357,7 @@ fun NavigationPage(navController: NavController) {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
+                routeFindingJob.cancel()
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -364,7 +399,41 @@ fun NavigationPage(navController: NavController) {
                                 instructions.add("$instruction (${formatDistance(stepDistance)})")
                             }
 
-                            onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
+                            // Cancel the repeating announcement
+                            routeFindingJob.cancel()
+
+                            // Set up a listener for when TTS finishes speaking
+                            val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
+                                when (utteranceId) {
+                                    "route_found_utterance" -> {
+                                        // After route found announcement, update the UI and read first instruction
+                                        onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
+                                        
+                                        // Read the first instruction after a short delay
+                                        tts?.playSilentUtterance(1000, TextToSpeech.QUEUE_ADD, null)
+                                        if (instructions.isNotEmpty()) {
+                                            tts?.speak(
+                                                instructions[0],
+                                                TextToSpeech.QUEUE_ADD,
+                                                null,
+                                                null
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Set the listener to TTS
+                            val params = HashMap<String, String>()
+                            params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "route_found_utterance"
+                            tts?.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
+
+                            // Make the final announcement before calling the callback
+                            tts?.speak(
+                                "Route to $destinationText is found. Follow these instructions.",
+                                TextToSpeech.QUEUE_FLUSH,
+                                params
+                            )
 
                             checkRouteAlerts(routePoints) { alerts ->
                                 if (alerts.isNotEmpty()) {
@@ -380,6 +449,7 @@ fun NavigationPage(navController: NavController) {
                         }
                     } catch (e: Exception) {
                         Log.e("ROUTE_ERROR", "Error parsing response: ${e.message}")
+                        routeFindingJob.cancel()
                     }
                 }
             }
