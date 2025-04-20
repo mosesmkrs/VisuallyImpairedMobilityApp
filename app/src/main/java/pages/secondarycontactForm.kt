@@ -1,6 +1,5 @@
 package pages
 
-import retrofit2.Call
 import android.app.Application
 import android.util.Log
 import android.widget.Toast
@@ -20,8 +19,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.navigation.NavController
 import com.example.newapp.Routes
-import apis.secondaryContactApiClient
-import apis.secondaryContactRequest
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
@@ -32,15 +29,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.tooling.preview.Preview
 import apis.GoogleAuthClient
-import apis.PrimaryContactRequest
-import apis.primaryContactApiClient
 import com.example.newapp.SQL.SC.SecondaryContact
 import com.example.newapp.SQL.SC.sCViewModel
 import com.example.newapp.SQL.users.UserViewModel
@@ -49,7 +38,7 @@ import java.util.Locale
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun SecondaryContactForm(navController: NavController) {
+fun SecondaryContactForm(navController: NavController, googleAuthClient: GoogleAuthClient) {
     val context = LocalContext.current
     var tts = remember { TextToSpeech(context) { } }
     val scope = rememberCoroutineScope()
@@ -59,7 +48,7 @@ fun SecondaryContactForm(navController: NavController) {
     var secondaryPhoneError by remember { mutableStateOf<String?>(null) }
     var contactSuggestions by remember { mutableStateOf(listOf<String>()) }
     var dbSaveSuccess by remember { mutableStateOf(true) }
-    
+
     // Initialize ViewModels
     val userViewModel = remember {
         ViewModelProvider(
@@ -67,19 +56,18 @@ fun SecondaryContactForm(navController: NavController) {
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(UserViewModel::class.java)
     }
-    
+
     val contactViewModel = remember {
         ViewModelProvider(
             context as ViewModelStoreOwner,
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(sCViewModel::class.java)
     }
-    
+
     // Get current user ID
-    val googleAuthClient = remember { GoogleAuthClient(context) }
     val currentFirebaseUUID = googleAuthClient.getUserId() ?: ""
     var currentUserID by remember { mutableStateOf(0) }
-    
+
     // Load current user ID from Firebase UUID
     LaunchedEffect(currentFirebaseUUID) {
         if (currentFirebaseUUID.isNotEmpty()) {
@@ -96,8 +84,6 @@ fun SecondaryContactForm(navController: NavController) {
             }
         }
     }
-
-
 
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -132,14 +118,10 @@ fun SecondaryContactForm(navController: NavController) {
         }
     }
 
-
-
-
-
     fun validateForm(): Boolean {
         var isValid = true
         if (secondaryName.isBlank()) {
-           secondaryNameError = "Full name is required"
+            secondaryNameError = "Full name is required"
             isValid = false
         } else {
             secondaryNameError = null
@@ -157,22 +139,7 @@ fun SecondaryContactForm(navController: NavController) {
 
     fun submitContact() {
         if (!validateForm()) return
-        
-        // Save to Firebase (keep existing API for backward compatibility)
-        val newContact = PrimaryContactRequest(secondaryName, secondaryPhone, "Secondary")
-        primaryContactApiClient.api.createPrimaryContact(newContact).enqueue(object : retrofit2.Callback<Void> {
-            override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
-                if (response.isSuccessful) {
-                    Log.d("ContactForm", "Secondary contact saved to Firebase")
-                } else {
-                    Log.e("ContactForm", "Failed to save secondary contact to Firebase")
-                }
-            }
-            override fun onFailure(call: Call<Void>, t: Throwable) {
-                Log.e("ContactForm", "Error saving secondary contact to Firebase: ${t.message}")
-            }
-        })
-        
+
         // Save to SQLite
         scope.launch {
             try {
@@ -182,7 +149,7 @@ fun SecondaryContactForm(navController: NavController) {
                         contactname = secondaryName,
                         contactnumber = secondaryPhone
                     )
-                    
+
                     val result = contactViewModel.insertOrUpdateContact(contact)
                     if (result > 0) {
                         dbSaveSuccess = true

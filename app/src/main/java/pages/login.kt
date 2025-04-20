@@ -67,6 +67,7 @@ fun GoogleSignInScreen(
 
     // Check if user is already signed in
     var isSignedIn by remember { mutableStateOf(googleAuthClient.isSingedIn()) }
+    Log.d("Login", "Initial sign-in state: $isSignedIn")
 
     // Initialize ViewModels for SQLite database operations
     val userViewModel = remember {
@@ -94,18 +95,22 @@ fun GoogleSignInScreen(
     // Activity result launcher for Google Sign-In
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result: ActivityResult ->
+    ) { result ->
+        Log.d("Login", "Sign-in result received: ${result.resultCode}")
         isLoading = true
         if (result.resultCode == Activity.RESULT_OK) {
             // Handle successful sign-in
             coroutineScope.launch {
                 try {
-                    val authResult = result.data?.let { googleAuthClient.handleSignInResult(it) }
-                    if (authResult != null) {
+                    val success = result.data?.let { googleAuthClient.handleSignInResult(it) } ?: false
+                    Log.d("Login", "Sign-in result handled: $success")
+                    if (success) {
                         isSignedIn = true
+                        Log.d("Login", "User signed in successfully, processing user data")
                         processSignedInUser(googleAuthClient, userViewModel, primaryContactViewModel, secondaryContactViewModel, navController, tts)
                     } else {
-                        errorMessage = "Failed to authenticate with Firebase"
+                        errorMessage = "Failed to authenticate with Google"
+                        Log.e("Login", "Sign-in failed: Authentication failed")
                         speakText(tts, "Sign-in failed. Please try again.")
                         isLoading = false
                     }
@@ -127,8 +132,12 @@ fun GoogleSignInScreen(
 
     // Check if already signed in and process the user
     LaunchedEffect(Unit) {
+        Log.d("Login", "Checking initial sign-in state")
         if (googleAuthClient.isSingedIn()) {
+            Log.d("Login", "User already signed in, processing user data")
             isLoading = true
+            isSignedIn = true
+            navController.navigate(Routes.homeScreen)
             try {
                 processSignedInUser(googleAuthClient, userViewModel, primaryContactViewModel, secondaryContactViewModel, navController, tts)
             } catch (e: Exception) {
@@ -136,8 +145,7 @@ fun GoogleSignInScreen(
                 isLoading = false
             }
         } else {
-            // Speak welcome message for new users
-            //speakText(tts, "Welcome to the app. Your Navigation Assistant!")
+            Log.d("Login", "User not signed in")
         }
     }
 
@@ -179,7 +187,6 @@ fun GoogleSignInScreen(
         // Show error message if any
         errorMessage?.let {
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
                 text = it,
                 color = Color.Red,
@@ -200,10 +207,12 @@ fun GoogleSignInScreen(
                         try {
                             isLoading = true
                             errorMessage = null
+                            Log.d("Login", "Starting sign-in process")
                             speakText(tts, "Signing in with Google. Please wait.")
 
                             // Start the sign-in flow
                             val intentSender = googleAuthClient.signIn()
+                            Log.d("Login", "Got intent sender: ${intentSender != null}")
                             if (intentSender != null) {
                                 val intentSenderRequest = IntentSenderRequest.Builder(intentSender).build()
                                 signInLauncher.launch(intentSenderRequest)
@@ -211,10 +220,12 @@ fun GoogleSignInScreen(
                             } else {
                                 // No intent sender returned, could be already signed in or error
                                 if (googleAuthClient.isSingedIn()) {
+                                    Log.d("Login", "User already signed in, processing user data")
                                     isSignedIn = true
                                     processSignedInUser(googleAuthClient, userViewModel, primaryContactViewModel, secondaryContactViewModel, navController, tts)
                                 } else {
                                     errorMessage = "Could not start sign-in process"
+                                    Log.e("Login", "Could not start sign-in process")
                                     speakText(tts, "Could not start sign-in process. Please try again.")
                                     isLoading = false
                                 }
@@ -238,8 +249,6 @@ fun GoogleSignInScreen(
     }
 }
 
-
-
 // Helper function to speak text using TextToSpeech
 fun speakText(tts: TextToSpeech, text: String) {
     if (tts.isSpeaking) {
@@ -257,10 +266,18 @@ suspend fun processSignedInUser(
     navController: NavController,
     tts: TextToSpeech
 ) {
-    val newUserName = googleAuthClient.getUserName() ?: "Unknown"
-    val newUserId = googleAuthClient.getUserId() ?: ""
-    val newUserEmail = googleAuthClient.getUserEmail() ?: ""
-    val newUserPhotoUrl = googleAuthClient.getUserPhotoUrl() ?: ""
+    val googleUser = googleAuthClient.getUser()
+    Log.d("Login", "Processing signed-in user: ${googleUser?.id}")
+
+    if (googleUser == null) {
+        Log.e("Login", "Google user is null after sign-in")
+        return
+    }
+
+    val newUserName = googleUser.name
+    val newUserId = googleUser.id
+    val newUserEmail = googleUser.email
+    val newUserPhotoUrl = googleUser.photoUrl
 
     // Create a new user object for SQLite database
     val user = Users(
@@ -273,54 +290,42 @@ suspend fun processSignedInUser(
     try {
         // Check if user already exists and handle accordingly
         val userExists = userViewModel.userExists(newUserId)
+        Log.d("Login", "User exists in database: $userExists")
+
         if (userExists) {
             // User exists, update their information
-            Log.d("SQLiteDB", "User already exists in database, updating: $newUserName")
+            Log.d("Login", "Updating existing user: $newUserName")
             userViewModel.insertOrUpdate(user)
             speakText(tts, "Sign-in successful! Welcome back, $newUserName")
+
+            // Get the user ID from the database
+            val dbUser = userViewModel.getUserByFirebaseUUID(newUserId)
+            if (dbUser != null) {
+                // Check if both primary and secondary contacts exist
+                val primaryContact = primaryContactViewModel.getPrimaryContact(dbUser.userID)
+                val secondaryContact = secondaryContactViewModel.getSecondaryContact(dbUser.userID)
+
+                if (primaryContact != null && secondaryContact != null) {
+                    Log.d("Login", "Both contacts exist, navigating to home screen")
+                    speakText(tts, "Welcome back! Navigating to home screen.")
+                    navController.navigate(Routes.homeScreen)
+                    return
+                }
+            }
         } else {
             // New user, insert them
             userViewModel.insert(user)
-            Log.d("SQLiteDB", "New user saved to SQLite database: $newUserName")
+            Log.d("Login", "Inserted new user: $newUserName")
             speakText(tts, "Sign-in successful! Welcome, $newUserName")
         }
+
+        // If we get here, either user is new or contacts are missing
+        Log.d("Login", "Navigating to contact form")
+        navController.navigate(Routes.ContactFormScreen)
     } catch (e: Exception) {
-        Log.e("SQLiteDB", "Error saving user to SQLite database: ${e.message}")
+        Log.e("Login", "Error saving user to SQLite database: ${e.message}")
         e.printStackTrace()
         speakText(tts, "Sign-in successful! Welcome, $newUserName. Note: Some user data could not be saved locally.")
-    }
-
-    // Check if user has any contacts
-    var userID = 0
-    try {
-        userID = userViewModel.getUserIDByFirebaseUUID(newUserId)
-        Log.d("Login", "Retrieved user ID: $userID for Firebase UID: $newUserId")
-    } catch (e: Exception) {
-        Log.e("Login", "Error getting user ID: ${e.message}")
-        e.printStackTrace()
-    }
-
-    if (userID > 0) {
-        val hasPrimaryContact = primaryContactViewModel.getPrimaryContact(userID) != null
-        val hasSecondaryContact = secondaryContactViewModel.getSecondaryContact(userID) != null
-
-        Log.d("Login", "Contact check - Primary: $hasPrimaryContact, Secondary: $hasSecondaryContact")
-
-        if (hasPrimaryContact && hasSecondaryContact) {
-            // User has both contacts, navigate to home page
-            Log.d("Navigation", "User has both contacts, navigating to home page")
-            speakText(tts, "Welcome back! Taking you to the home page.")
-            navController.navigate(Routes.homeScreen)
-        } else {
-            // User is missing at least one contact, navigate to contact form
-            Log.d("Navigation", "User missing contacts, navigating to contact form")
-            speakText(tts, "Please set up your emergency contacts first.")
-            navController.navigate(Routes.ContactFormScreen)
-        }
-    } else {
-        // User ID not found, navigate to contact form
-        Log.d("Navigation", "User ID not found or error occurred, navigating to contact form")
-        speakText(tts, "Please set up your emergency contacts first.")
         navController.navigate(Routes.ContactFormScreen)
     }
 }

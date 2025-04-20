@@ -44,7 +44,7 @@ import retrofit2.Call
 import java.util.Locale
 
 @Composable
-fun ContactFormScreen(navController: NavController) {
+fun ContactFormScreen(navController: NavController,googleAuthClient: GoogleAuthClient,) {
     val context = LocalContext.current
     var tts = remember { TextToSpeech(context) { } }
     val scope = rememberCoroutineScope()
@@ -79,19 +79,18 @@ fun ContactFormScreen(navController: NavController) {
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(UserViewModel::class.java)
     }
-    
+
     val contactViewModel = remember {
         ViewModelProvider(
             context as ViewModelStoreOwner,
             ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
         ).get(pCViewModel::class.java)
     }
-    
+
     // Get current user ID
-    val googleAuthClient = remember { GoogleAuthClient(context) }
     val currentFirebaseUUID = googleAuthClient.getUserId() ?: ""
     var currentUserID by remember { mutableStateOf(0) }
-    
+
     // Load current user ID from Firebase UUID
     LaunchedEffect(currentFirebaseUUID) {
         if (currentFirebaseUUID.isNotEmpty()) {
@@ -147,7 +146,7 @@ fun ContactFormScreen(navController: NavController) {
 
     fun submitContact() {
         if (!validateForm()) return
-        
+
         // Save to Firebase (keep existing API for backward compatibility)
         val newContact = PrimaryContactRequest(primaryName, primaryPhone, "Primary")
         primaryContactApiClient.api.createPrimaryContact(newContact).enqueue(object : retrofit2.Callback<Void> {
@@ -163,7 +162,7 @@ fun ContactFormScreen(navController: NavController) {
                 Log.e("ContactForm", "Error saving to Firebase: ${t.message}")
             }
         })
-        
+
         // Save to SQLite
         scope.launch {
             try {
@@ -173,7 +172,7 @@ fun ContactFormScreen(navController: NavController) {
                         contactname = primaryName,
                         contactnumber = primaryPhone
                     )
-                    
+
                     val result = contactViewModel.insertOrUpdateContact(contact)
                     if (result > 0) {
                         dbSaveSuccess = true
@@ -326,7 +325,7 @@ fun ContactFormScreen(navController: NavController) {
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text("Primary Contact", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = primaryName,
@@ -383,7 +382,7 @@ fun ContactFormScreen(navController: NavController) {
         Button(
             onClick = {
                 submitContact()
-                      },
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Submit")

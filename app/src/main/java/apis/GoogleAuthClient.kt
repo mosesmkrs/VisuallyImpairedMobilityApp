@@ -4,17 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.util.Log
-import com.example.newapp.BuildConfig
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.BeginSignInResult
 import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
-import com.google.firebase.auth.AuthResult
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -22,27 +17,49 @@ class GoogleAuthClient(
     private val context: Context,
 ) {
     private val tag = "GoogleAuthClient: "
-    private val auth = FirebaseAuth.getInstance()
     private val oneTapClient: SignInClient = Identity.getSignInClient(context)
-    
+
     // Server client ID from google-services.json
     private val serverClientId = "663604971731-j4vgnp262u3cu9l2vissqhakfcess5i4.apps.googleusercontent.com"
 
-    // Get user information methods
-    fun getUser(): FirebaseUser? = auth.currentUser
-    
-    fun getUserId(): String? = auth.currentUser?.uid
-    
-    fun getUserName(): String? = auth.currentUser?.displayName
-    
-    fun getUserEmail(): String? = auth.currentUser?.email
-    
-    fun getUserPhotoUrl(): String? = auth.currentUser?.photoUrl?.toString()
+    // User information
+    private var currentUser: GoogleUser? = null
 
-    // Check if user is signed in
+    data class GoogleUser(
+        val id: String,
+        val name: String,
+        val email: String,
+        val photoUrl: String
+    )
+
+    // Get user information methods
+    fun getUser(): GoogleUser? {
+        Log.d(tag, "Getting user: ${currentUser?.id}")
+        return currentUser
+    }
+
+    fun getUserId(): String? {
+        Log.d(tag, "Getting user ID: ${currentUser?.id}")
+        return currentUser?.id
+    }
+
+    fun getUserName(): String? {
+        Log.d(tag, "Getting user name: ${currentUser?.name}")
+        return currentUser?.name
+    }
+
+    fun getUserEmail(): String? {
+        Log.d(tag, "Getting user email: ${currentUser?.email}")
+        return currentUser?.email
+    }
+
+    fun getUserPhotoUrl(): String? {
+        Log.d(tag, "Getting user photo URL: ${currentUser?.photoUrl}")
+        return currentUser?.photoUrl
+    }
+
     fun isSingedIn(): Boolean {
-        if (auth.currentUser != null) {
-            Log.d(tag, "User already signed in: ${auth.currentUser?.displayName}")
+        if (currentUser != null) {
             return true
         }
         return false
@@ -77,7 +94,7 @@ class GoogleAuthClient(
             return null
         }
     }
-    
+
     // Create Google sign-in request
     private fun googleSignInRequest(): BeginSignInRequest {
         return BeginSignInRequest.builder()
@@ -85,54 +102,52 @@ class GoogleAuthClient(
                 BeginSignInRequest.GoogleIdTokenRequestOptions.builder()
                     .setSupported(true)
                     .setServerClientId(serverClientId)
-                    .setFilterByAuthorizedAccounts(false) // Show all accounts, not just previously authorized ones
+                    .setFilterByAuthorizedAccounts(false)
                     .build()
             )
             .build()
     }
 
     // Handle sign-in result from activity
-    suspend fun handleSignInResult(data: Intent): AuthResult? {
+    suspend fun handleSignInResult(data: Intent): Boolean {
         try {
             val credential = oneTapClient.getSignInCredentialFromIntent(data)
             val idToken = credential.googleIdToken
-            
+
             if (idToken != null) {
-                Log.d(tag, "Got ID token from Google, authenticating with Firebase")
-                return firebaseAuthWithGoogle(idToken)
+                Log.d(tag, "Got ID token from Google")
+
+                // Create user object from Google credentials
+                currentUser = GoogleUser(
+                    id = credential.id ?: "",
+                    name = credential.displayName ?: "",
+                    email = credential.id ?: "",
+                    photoUrl = credential.profilePictureUri?.toString() ?: ""
+                )
+
+                Log.d(tag, "User signed in successfully: ${currentUser?.name}")
+                Log.d(tag, "Google ID: ${currentUser?.id}")
+                Log.d(tag, "Email: ${currentUser?.email}")
+                return true
             } else {
                 Log.e(tag, "No ID token found in sign-in result")
-                return null
+                return false
             }
         } catch (e: ApiException) {
             Log.e(tag, "Error getting sign-in credential: ${e.statusCode} ${e.message}")
-            return null
+            return false
         } catch (e: Exception) {
             Log.e(tag, "Unexpected error handling sign-in result: ${e.message}")
             e.printStackTrace()
-            return null
+            return false
         }
     }
 
-    // Authenticate with Firebase using Google ID token
-    suspend fun firebaseAuthWithGoogle(idToken: String): AuthResult? {
-        val credential = GoogleAuthProvider.getCredential(idToken, null)
-        return try {
-            val authResult = auth.signInWithCredential(credential).await()
-            Log.d(tag, "Firebase authentication successful for user: ${authResult.user?.displayName} (${authResult.user?.uid})")
-            authResult
-        } catch (e: Exception) {
-            Log.e(tag, "Firebase authentication failed: ${e.message}")
-            e.printStackTrace()
-            null
-        }
-    }
-
-    // Sign out from both Google and Firebase
+    // Sign out from Google
     suspend fun signOut() {
         try {
             oneTapClient.signOut().await()
-            auth.signOut()
+            currentUser = null
             Log.d(tag, "User signed out successfully")
         } catch (e: Exception) {
             Log.e(tag, "Error signing out: ${e.message}")

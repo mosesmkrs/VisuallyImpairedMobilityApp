@@ -12,10 +12,10 @@ import androidx.room.Update
 interface UserDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(users: Users): Long
-    
+
     @Query("SELECT * FROM users WHERE firebaseUUID = :firebaseUUID LIMIT 1")
     suspend fun getUserByFirebaseUUID(firebaseUUID: String): Users?
-    
+
     @Query("SELECT EXISTS(SELECT 1 FROM users WHERE firebaseUUID = :firebaseUUID LIMIT 1)")
     suspend fun userExists(firebaseUUID: String): Boolean
 

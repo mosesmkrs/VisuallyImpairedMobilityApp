@@ -124,10 +124,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     )
                 }
                 composable(Routes.ContactFormScreen) {
-                    ContactFormScreen(navController)
+                    ContactFormScreen(
+                        navController,
+                        googleAuthClient = googleAuthClient
+                    )
                 }
                 composable(Routes.SecondaryContactForm) {
-                    SecondaryContactForm(navController)
+                    SecondaryContactForm(
+                        navController,
+                        googleAuthClient = googleAuthClient
+                    )
                 }
                 composable(Routes.MatatuPage){
                     MatatuPage(navController)
