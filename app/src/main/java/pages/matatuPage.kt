@@ -14,14 +14,36 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,15 +63,25 @@ import apis.GtfsLocation
 import apis.MatatuRouteHandler
 import apis.NearestStopResult
 import com.example.newapp.R
-import com.google.android.gms.location.*
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import components.Footer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import okhttp3.*
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
@@ -80,6 +112,27 @@ fun MatatuPage(navController: NavController) {
     var showSuggestions by remember { mutableStateOf(false) }
     var locationSuggestions by remember { mutableStateOf<List<GtfsLocation>>(emptyList()) }
 
+    // Permission launcher declaration
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        locationPermissionGranted = isGranted
+        if (isGranted) {
+            try {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    fetchUserLocationn(context, fusedLocationClient) { userLocation = it }
+                }
+            } catch (e: SecurityException) {
+                Log.e("MatatuPage", "Security exception when fetching location after permission grant: ${e.message}")
+                errorMessage = "Unable to access location. Please check your location settings."
+                tts?.speak("Unable to access location. Please check your location settings.", TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+        } else {
+            errorMessage = "Location permission is required for navigation"
+            tts?.speak("Location permission is required for navigation. Please enable location access.", TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+
     // Initialize GTFS data handler
     val gtfsDataHandler = remember { GtfsDataHandler(context) }
 
@@ -106,6 +159,14 @@ fun MatatuPage(navController: NavController) {
     // Add this at the top of the MatatuPage composable
     val repeatingAnnouncementScope = rememberCoroutineScope()
     var routeFindingJob: Job? by remember { mutableStateOf(null) }
+
+    // Add location update throttling
+    var lastLocationUpdate by remember { mutableStateOf(0L) }
+    val locationUpdateInterval = 5000L // 5 seconds
+
+    // Add route cache
+    val routeCache = remember { mutableMapOf<String, List<GeoPoint>>() }
+    val walkingRouteCache = remember { mutableMapOf<String, List<GeoPoint>>() }
 
     // Initialize GTFS data when the screen is first loaded
     LaunchedEffect(Unit) {
@@ -143,67 +204,47 @@ fun MatatuPage(navController: NavController) {
         }
     }
 
-    // Function to fetch walking route
-//    fun fetchWalkingRoute(
-//        start: GeoPoint,
-//        end: GeoPoint,
-//        onRouteReceived: (List<GeoPoint>, String, String, List<String>) -> Unit
-//    ) {
-////        val apiKey = "456b9753-702c-48ca-91d4-1c21e1b015a9" // Replace with your GraphHopper API Key
-////        val url = "https://graphhopper.com/api/1/route?point=${start.latitude},${start.longitude}&point=${end.latitude},${end.longitude}&profile=foot&points_encoded=false&instructions=true&key=$apiKey"
-//        val url = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
-//        val client = OkHttpClient()
-//        val request = Request.Builder().url(url).build()
-//
-//        client.newCall(request).enqueue(object : Callback {
-//            override fun onFailure(call: Call, e: IOException) {
-//                Log.e("ROUTE_ERROR", "Failed to get route: ${e.message}")
-//            }
-//
-//            override fun onResponse(call: Call, response: Response) {
-//                response.body?.let { responseBody ->
-//                    val json = JSONObject(responseBody.string())
-//
-//                    if (!json.has("paths") || json.getJSONArray("paths").length() == 0) {
-//                        Log.e("ROUTE_ERROR", "No route found.")
-//                        return
-//                    }
-//
-//                    val path = json.getJSONArray("paths").getJSONObject(0)
-//                    val distanceMeters = path.getDouble("distance")
-//                    val timeMillis = path.getDouble("time")
-//
-//                    val distanceKm = distanceMeters / 1000.0
-//                    val durationMin = timeMillis / (1000.0 * 60.0)
-//
-//                    val formattedDistance = String.format("%.2f Km", distanceKm)
-//                    val formattedDuration = String.format("%.2f Minutes", durationMin)
-//
-//                    // Extract route points
-//                    val coordinates = path.getJSONObject("points").getJSONArray("coordinates")
-//                    val routePoints = mutableListOf<GeoPoint>()
-//                    for (i in 0 until coordinates.length()) {
-//                        val point = coordinates.getJSONArray(i)
-//                        routePoints.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
-//                    }
-//
-//                    // Extract step-by-step walking directions
-//                    val instructionsArray = path.getJSONArray("instructions")
-//                    val instructions = mutableListOf<String>()
-//                    for (i in 0 until instructionsArray.length()) {
-//                        val step = instructionsArray.getJSONObject(i)
-//                        val text = step.getString("text")
-//                        val distance = step.getDouble("distance") / 1000.0
-//                        val formattedStep = "$text (${String.format("%.2f Km", distance)})"
-//                        instructions.add(formattedStep)
-//                    }
-//
-//                    onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
-//                }
-//            }
-//        })
-//    }
+    // Optimize location updates
+    LaunchedEffect(Unit) {
+        if (locationPermissionGranted) {
+            try {
+                // Check if we have the required permission
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+                        .setMinUpdateIntervalMillis(5000)
+                        .setMaxUpdateDelayMillis(10000)
+                        .build()
 
+                    fusedLocationClient.requestLocationUpdates(
+                        locationRequest,
+                        object : LocationCallback() {
+                            override fun onLocationResult(locationResult: LocationResult) {
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastLocationUpdate >= locationUpdateInterval) {
+                                    locationResult.lastLocation?.let { location ->
+                                        userLocation = GeoPoint(location.latitude, location.longitude)
+                                        lastLocationUpdate = currentTime
+                                    }
+                                }
+                            }
+                        },
+                        Looper.getMainLooper()
+                    )
+                } else {
+                    // Request permission if not granted
+                    permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+            } catch (e: SecurityException) {
+                Log.e("MatatuPage", "Security exception when requesting location updates: ${e.message}")
+                // Request permission if we get a security exception
+                permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            } catch (e: Exception) {
+                Log.e("MatatuPage", "Error requesting location updates: ${e.message}")
+            }
+        }
+    }
+
+    // Function to fetch walking route
     fun fetchWalkingRoute(
         start: GeoPoint,
         end: GeoPoint,
@@ -535,7 +576,7 @@ fun MatatuPage(navController: NavController) {
         // Set up a listener for when TTS finishes speaking
         val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
             // After TTS finishes, load the instructions
-            onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
+        onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
         }
 
         // Set the listener to TTS
@@ -568,154 +609,6 @@ fun MatatuPage(navController: NavController) {
         }
     }
 
-    // Voice Input Launcher
-    val voiceInputLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val data: Intent? = result.data
-        val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
-        if (!spokenText.isNullOrEmpty()) {
-            destinationText = spokenText
-            tts!!.speak("You entered $spokenText. Finding directions now.", TextToSpeech.QUEUE_FLUSH, null, null)
-
-            // Get location suggestions based on spoken text
-            coroutineScope.launch {
-                val suggestions = gtfsDataHandler.getSuggestions(spokenText)
-                locationSuggestions = suggestions
-                showSuggestions = suggestions.isNotEmpty()
-
-                if (suggestions.isNotEmpty()) {
-                    // Use the first suggestion automatically
-                    val firstSuggestion = suggestions[0] as GtfsLocation
-
-                    tts!!.speak("Using ${firstSuggestion.name} as your destination.", TextToSpeech.QUEUE_ADD, null, null)
-
-                    // Check for non-null latitude and longitude before creating GeoPoint
-                    val destinationPoint = if (firstSuggestion.lat != null && firstSuggestion.lon != null) {
-                        GeoPoint(firstSuggestion.lat, firstSuggestion.lon)
-                    } else {
-                        // Handle the case where lat or lon is null, e.g., show an error message or default location
-                        tts?.speak("Invalid location coordinates.", TextToSpeech.QUEUE_FLUSH, null, null)
-                        null
-                    }
-
-                    // Ensure fetchWalkingRoute and fetchRoutes are in scope
-                    if (destinationPoint != null) {
-                        destinationLocation = destinationPoint
-
-                        // Create a repeating announcement for visually impaired users
-                        routeFindingJob = repeatingAnnouncementScope.launch {
-                            try {
-                                // Initial announcement
-                                Log.d("MatatuPage", "Starting repeating announcement for ${firstSuggestion.name}")
-                                tts?.speak(
-                                    "Finding matatu route to ${firstSuggestion.name}, please wait",
-                                    TextToSpeech.QUEUE_ADD, 
-                                    null, 
-                                    null
-                                )
-                                
-                                // Repeat every 3 seconds until cancelled
-                                while (isActive) {
-                                    kotlinx.coroutines.delay(6000) // Wait 3 seconds
-                                    Log.d("MatatuPage", "Repeating announcement for ${firstSuggestion.name}")
-                                    tts?.speak(
-                                        "Finding matatu route to ${firstSuggestion.name}, please wait",
-                                        TextToSpeech.QUEUE_ADD, 
-                                        null, 
-                                        null
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                // If there's an error, log it
-                                Log.e("MatatuPage", "Error in repeating announcement: ${e.message}")
-                            }
-                        }
-
-                        // First, try to find the nearest matatu stop that serves this destination
-                        val result = matatuRouteHandler.findNearestStopToDestination(
-                            userLocation!!, destinationPoint
-                        )
-
-                        if (result != null) {
-                            nearestStopResult = result
-                            showingDirectionsToStop = true
-                            routePoints = emptyList() // Clear any existing direct route
-
-                            // Get walking directions to the nearest stop
-                            val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
-                            fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints: List<GeoPoint>, distance: String, duration: String, directions: List<String> ->
-                                walkingRouteToStop = newRoutePoints
-                                walkingDirections = directions
-                                walkingDistance = distance
-                                walkingDuration = duration
-                                
-                                // Now fetch the matatu route from nearest stop to destination stop
-                                fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
-                                    // Cancel the repeating announcement only after matatu route is found
-                                    Log.d("MatatuPage", "Matatu route found, cancelling repeating announcement")
-                                    routeFindingJob?.cancel()
-                                    routeFindingJob = null
-                                    
-                                    matatuRoutePath = matatuRoutePoints
-                                    matatuRouteDirections = matatuDirections
-                                    matatuRouteDistance = matatuDistance
-                                    matatuRouteDuration = matatuDuration
-                                    
-                                    // Combine walking and matatu directions for the complete journey
-                                    val completeDirections = mutableListOf<String>()
-                                    completeDirections.add("--- Walking to Matatu Stop ---")
-                                    completeDirections.addAll(directions)
-                                    completeDirections.add("--- Matatu Journey ---")
-                                    completeDirections.addAll(matatuDirections)
-                                    
-                                    // Update the UI
-                                    showDirectionsPanel = true
-                                    currentDirectionIndex = 0
-                                    
-                                    // Announce the result to the user
-                                    val announcement = "Found a matatu route to your destination. " +
-                                            "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
-                                            "${result.route.name} to ${result.destinationStop.name}. " +
-                                            "The matatu journey will take approximately $matatuDuration."
-                                    
-                                    tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                    
-                                    // Only announce that we found a route, then read the first direction
-                                    readRouteAnnouncement(tts!!, firstSuggestion.name)
-                                    
-                                    // Set the current direction index to the first step
-                                    currentDirectionIndex = 0
-                                }
-                            }
-                        } else {
-                            // Cancel the repeating announcement if no route is found
-                            routeFindingJob?.cancel()
-                            routeFindingJob = null
-                            tts!!.speak("Could not find a matatu route to ${firstSuggestion.name}. Please try another destination.",
-                                TextToSpeech.QUEUE_FLUSH, null, null)
-                        }
-                    } else {
-                        tts!!.speak("Your location is not available. Please enable location services.",
-                            TextToSpeech.QUEUE_ADD, null, null)
-                    }
-                } else {
-                    tts!!.speak("No suggestions found for $spokenText. Please try again with a different destination.",
-                        TextToSpeech.QUEUE_ADD, null, null)
-                }
-            }
-        }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        locationPermissionGranted = isGranted
-        if (isGranted) {
-            fetchUserLocationn(context, fusedLocationClient) { userLocation = it }
-        }
-    }
-
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
@@ -737,20 +630,6 @@ fun MatatuPage(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
             .navigationBarsPadding(),
-//            .pointerInput(Unit){
-//                detectTapGestures(
-//                    onDoubleTap = {
-//                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-//                            putExtra(
-//                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-//                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-//                            )
-//                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-//                        }
-//                        voiceInputLauncher.launch(intent)
-//                    })
-//            }
-
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -786,7 +665,6 @@ fun MatatuPage(navController: NavController) {
                 modifier = Modifier.padding(16.dp)
             )
         }
-        // OutlinedTextField with Voice Input Trigger on Double Tap
         OutlinedTextField(
             value = destinationText,
             onValueChange = { newText ->
@@ -811,20 +689,6 @@ fun MatatuPage(navController: NavController) {
                 .fillMaxWidth()
                 .padding(16.dp)
                 .zIndex(1f),
-//                .pointerInput(Unit){
-//                    detectTapGestures(
-//                        onDoubleTap = {
-//                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
-//                                putExtra(
-//                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-//                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-//                                )
-//                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-//                            }
-//                            voiceInputLauncher.launch(intent)
-//                        }
-//                    )
-//                },
             shape = RoundedCornerShape(20.dp),
             trailingIcon = {
                 Button(
@@ -986,15 +850,15 @@ fun MatatuPage(navController: NavController) {
                                                 userLocation!!, location
                                             )
 
-                                            // Cancel the repeating announcement
+                                             // Cancel the repeating announcement
                                             routeFindingJob?.cancel()
                                             routeFindingJob = null
-                                            
-                                            if (result != null) {
-                                                Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
-                                                nearestStopResult = result
-                                                showingDirectionsToStop = true
-                                                routePoints = emptyList() // Clear any existing direct route
+                                             
+                                             if (result != null) {
+                                                 Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
+                                                 nearestStopResult = result
+                                                 showingDirectionsToStop = true
+                                                 routePoints = emptyList() // Clear any existing direct route
 
                                                 // Get walking directions to the nearest stop
                                                 val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
@@ -1241,6 +1105,10 @@ fun MatatuPage(navController: NavController) {
                     Configuration.getInstance()
                         .load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                     controller.setZoom(18.0)
+                    setMultiTouchControls(true)
+                    setBuiltInZoomControls(false)
+                    setTilesScaledToDpi(true)
+                    setUseDataConnection(false) // Use offline tiles if available
                 }
             }, update = { mapView ->
                 userLocation?.let { location ->
@@ -1314,60 +1182,48 @@ fun MatatuPage(navController: NavController) {
                             
                             val walkingPolyline = Polyline().apply {
                                 setPoints(walkingRouteToStop)
-                                color = Color.Green.hashCode()
-                                width = 5f
+                                color = Color.Blue.hashCode()
+                                width = 12f // Increased width for better visibility
                                 isGeodesic = true // Make sure the line follows the curvature of the earth
+                                outlinePaint.strokeWidth = 12f
+                                // Create circular dots with larger size (20f for dot size, 30f for gap)
+                                outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                                outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(2f, 30f), 0f)
                             }
                             mapView.overlays.add(walkingPolyline)
-                            
-                            // Add small markers at turning points to make the route more visible
-                            for (i in walkingRouteToStop.indices) {
-                                // Add markers at start, end, and some intermediate points
-                                if (i == 0 || i == walkingRouteToStop.size - 1 || i % 10 == 0) {
-                                    val point = walkingRouteToStop[i]
-                                    val marker = Marker(mapView).apply {
-                                        position = point
-                                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                                        icon = context.getDrawable(R.drawable.map_icon)?.apply {
-                                            setBounds(0, 0, 20, 20) // Make the marker smaller
-                                        }
-                                        title = if (i == 0) "Start" else if (i == walkingRouteToStop.size - 1) "Stop" else "Turn point"
-                                    }
-                                    mapView.overlays.add(marker)
-                                }
-                            }
                             
                             // Show matatu route from nearest stop to destination stop
                             if (matatuRoutePath.isNotEmpty()) {
                                 Log.d("MatatuPage", "Drawing matatu route with ${matatuRoutePath.size} points")
                                 
-                                // Add markers for the matatu stops
-                                val boardingMarker = Marker(mapView).apply {
-                                    position = matatuRoutePath.first()
-                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                    icon = context.getDrawable(R.drawable.bookmark_icon)
-                                    title = "Board Matatu at ${nearestStopResult!!.nearbyStop.name}"
-                                }
-                                mapView.overlays.add(boardingMarker)
+                                // Optimize route drawing
+                                val routeKey = "${matatuRoutePath.first().latitude},${matatuRoutePath.first().longitude}-${matatuRoutePath.last().latitude},${matatuRoutePath.last().longitude}"
+                                val cachedRoute = routeCache[routeKey]
                                 
-                                val alightingMarker = Marker(mapView).apply {
-                                    position = matatuRoutePath.last()
-                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                    icon = context.getDrawable(R.drawable.bookmark_icon)
-                                    title = "Alight at ${nearestStopResult!!.destinationStop.name}"
+                                if (cachedRoute != null) {
+                                    // Use cached route
+                                    val polyline = Polyline().apply {
+                                        setPoints(cachedRoute)
+                                        this.color = Color.Blue.hashCode()
+                                        width = 6f // Reduced width for matatu route
+                                        isGeodesic = true
+                                        outlinePaint.strokeWidth = 6f
+                                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                                    }
+                                    mapView.overlays.add(polyline)
+                                } else {
+                                    // Cache and draw new route
+                                    routeCache[routeKey] = matatuRoutePath
+                                    val polyline = Polyline().apply {
+                                        setPoints(matatuRoutePath)
+                                        this.color = Color.Blue.hashCode()
+                                        width = 6f // Reduced width for matatu route
+                                        isGeodesic = true
+                                        outlinePaint.strokeWidth = 6f
+                                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                                    }
+                                    mapView.overlays.add(polyline)
                                 }
-                                mapView.overlays.add(alightingMarker)
-                                
-                                // Add route information marker
-                                val infoMarker = Marker(mapView).apply {
-                                    position = matatuRoutePath[matatuRoutePath.size / 2]
-                                    title = nearestStopResult!!.route.name
-                                    snippet = "Distance: $matatuRouteDistance, Duration: $matatuRouteDuration"
-                                }
-                                mapView.overlays.add(infoMarker)
-                                
-                                // Animate the matatu along the route
-                                animateAlongRoute(mapView, matatuRoutePath, Color.Red.hashCode())
                             }
                         }
                     }
@@ -1386,25 +1242,46 @@ fun MatatuPage(navController: NavController) {
                         val polyline = Polyline().apply {
                             setPoints(routePoints)
                             color = Color.Blue.hashCode()
-                            width = 5f
+                            width = 12f // Increased width for better visibility
                             isGeodesic = true // Make sure the line follows the curvature of the earth
+                            outlinePaint.strokeWidth = 12f
+                            // Create circular dots with larger size (20f for dot size, 30f for gap)
+                            outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                            outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(2f, 30f), 0f)
                         }
                         mapView.overlays.add(polyline)
                         
-                        // Add small markers at turning points to make the route more visible
-                        for (i in routePoints.indices) {
-                            // Add markers at start, end, and some intermediate points
-                            if (i == 0 || i == routePoints.size - 1 || i % 10 == 0) {
-                                val point = routePoints[i]
-                                val marker = Marker(mapView).apply {
-                                    position = point
-                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                                    icon = context.getDrawable(R.drawable.map_icon)?.apply {
-                                        setBounds(0, 0, 20, 20) // Make the marker smaller
-                                    }
-                                    title = if (i == 0) "Start" else if (i == routePoints.size - 1) "Destination" else "Turn point"
+                        // Show matatu route from nearest stop to destination stop
+                        if (matatuRoutePath.isNotEmpty()) {
+                            Log.d("MatatuPage", "Drawing matatu route with ${matatuRoutePath.size} points")
+                            
+                            // Optimize route drawing
+                            val routeKey = "${matatuRoutePath.first().latitude},${matatuRoutePath.first().longitude}-${matatuRoutePath.last().latitude},${matatuRoutePath.last().longitude}"
+                            val cachedRoute = routeCache[routeKey]
+                            
+                            if (cachedRoute != null) {
+                                // Use cached route
+                                val polyline = Polyline().apply {
+                                    setPoints(cachedRoute)
+                                    this.color = Color.Blue.hashCode()
+                                    width = 6f // Reduced width for matatu route
+                                    isGeodesic = true
+                                    outlinePaint.strokeWidth = 6f
+                                    outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
                                 }
-                                mapView.overlays.add(marker)
+                                mapView.overlays.add(polyline)
+                            } else {
+                                // Cache and draw new route
+                                routeCache[routeKey] = matatuRoutePath
+                                val polyline = Polyline().apply {
+                                    setPoints(matatuRoutePath)
+                                    this.color = Color.Blue.hashCode()
+                                    width = 6f // Reduced width for matatu route
+                                    isGeodesic = true
+                                    outlinePaint.strokeWidth = 6f
+                                    outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                                }
+                                mapView.overlays.add(polyline)
                             }
                         }
                     }
@@ -1553,19 +1430,7 @@ fun SuggestionItem(
             .clickable {
                 onSuggestionSelected(suggestion)
             }
-            .padding(16.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        onSuggestionSelected(suggestion)
-                    },
-                    onTap = {
-                        // Speak the suggestion when tapped once
-                        tts?.speak("${suggestion.name}, $locationTypeText",
-                            TextToSpeech.QUEUE_FLUSH, null, null)
-                    }
-                )
-            },
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
@@ -1587,7 +1452,7 @@ fun SuggestionItem(
 fun animateAlongRoute(
     mapView: MapView,
     route: List<GeoPoint>,
-    color: Int = Color.Red.hashCode(),
+    color: Int,
     onComplete: () -> Unit = {}
 ) {
     if (route.isEmpty()) return
@@ -1612,9 +1477,10 @@ fun animateAlongRoute(
     }
     mapView.overlays.add(polyline)
     
-    // Animate the marker along the route
+    // Optimize animation with fixed frame rate
     var currentIndex = 0
     val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    val frameRate = 16L // ~60 FPS
     
     val runnable = object : Runnable {
         override fun run() {
@@ -1623,16 +1489,8 @@ fun animateAlongRoute(
                 mapView.invalidate()
                 currentIndex++
                 
-                // Calculate delay based on distance to next point (for more realistic movement)
-                val delay = if (currentIndex < route.size) {
-                    val distance = calculateDistance(route[currentIndex-1], route[currentIndex])
-                    // Faster for longer segments, slower for shorter segments
-                    (500 + distance * 5000).toLong().coerceIn(100, 1000)
-                } else {
-                    500 // Default delay
-                }
-                
-                handler.postDelayed(this, delay)
+                // Use fixed frame rate instead of distance-based delay
+                handler.postDelayed(this, frameRate)
             } else {
                 // Animation complete
                 mapView.overlays.remove(vehicleMarker)
@@ -1812,6 +1670,5 @@ fun DirectionItem(
             color = if (isActive) Color.Black else Color.DarkGray
         )
     }
-
     Divider(thickness = 0.5.dp)
 }

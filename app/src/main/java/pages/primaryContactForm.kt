@@ -2,27 +2,38 @@ package pages
 
 import android.Manifest
 import android.app.Application
-import android.content.Intent
-import android.os.Bundle
 import android.provider.ContactsContract
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,14 +44,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.navigation.NavController
 import apis.GoogleAuthClient
-import apis.PrimaryContactRequest
 import com.example.newapp.Routes
-import apis.primaryContactApiClient
 import com.example.newapp.SQL.PC.PrimaryContact
 import com.example.newapp.SQL.PC.pCViewModel
 import com.example.newapp.SQL.users.UserViewModel
 import kotlinx.coroutines.launch
-import retrofit2.Call
 import java.util.Locale
 
 @Composable
@@ -147,22 +155,6 @@ fun ContactFormScreen(navController: NavController,googleAuthClient: GoogleAuthC
     fun submitContact() {
         if (!validateForm()) return
 
-        // Save to Firebase (keep existing API for backward compatibility)
-        val newContact = PrimaryContactRequest(primaryName, primaryPhone, "Primary")
-        primaryContactApiClient.api.createPrimaryContact(newContact).enqueue(object : retrofit2.Callback<Void> {
-            override fun onResponse(call: Call<Void>, response: retrofit2.Response<Void>) {
-                if (response.isSuccessful) {
-                    Log.d("ContactForm", "Primary contact saved to Firebase")
-                    navController.navigate(Routes.SecondaryContactForm)
-                } else {
-                    Log.e("ContactForm", "Failed to save contact to Firebase")
-                }
-            }
-            override fun onFailure(call: Call<Void>, t: Throwable) {
-                Log.e("ContactForm", "Error saving to Firebase: ${t.message}")
-            }
-        })
-
         // Save to SQLite
         scope.launch {
             try {
@@ -242,77 +234,10 @@ fun ContactFormScreen(navController: NavController,googleAuthClient: GoogleAuthC
         cursor?.close()
     }
 
-
-    fun startVoiceInput() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the full name of the primary contact")
-        }
-        speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                if (!matches.isNullOrEmpty()) {
-                    primaryName = matches[0]
-                    fetchSuggestions(primaryName)
-                    tts.speak("Showing suggestions for ${matches[0]}", TextToSpeech.QUEUE_FLUSH, null, null)
-                }
-            }
-            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        speechRecognizer.startListening(intent)
-    }
-
-    fun startPhoneVoiceInput() {
-        tts.speak("Please say the phone number", TextToSpeech.QUEUE_FLUSH, null, null)
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the phone number")
-        }
-        speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                if (!matches.isNullOrEmpty()) {
-                    // Process the spoken phone number - remove spaces and non-numeric characters
-                    val phoneNumber = matches[0].replace(Regex("[^0-9]"), "")
-                    primaryPhone = phoneNumber
-                    tts.speak("Phone number set to $phoneNumber", TextToSpeech.QUEUE_FLUSH, null, null)
-                }
-            }
-            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        speechRecognizer.startListening(intent)
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
-                        startVoiceInput()
-                    },
-                    onTap = {
-                        submitContact()
-                        tts.speak("Submitting contact", TextToSpeech.QUEUE_FLUSH, null, null)
-                    }
-                )
-            }
             .statusBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -365,11 +290,6 @@ fun ContactFormScreen(navController: NavController,googleAuthClient: GoogleAuthC
             label = { Text("Phone Number") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             isError = primaryPhoneError != null,
-            trailingIcon = {
-                IconButton(onClick = { startPhoneVoiceInput() }) {
-                    Icon(Icons.Filled.Mic, contentDescription = "Voice Input for Phone")
-                }
-            },
             modifier = Modifier
                 .fillMaxWidth()
         )

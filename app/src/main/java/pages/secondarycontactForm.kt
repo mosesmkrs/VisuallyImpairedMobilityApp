@@ -20,11 +20,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.navigation.NavController
 import com.example.newapp.Routes
 import android.Manifest
-import android.content.Intent
-import android.os.Bundle
 import android.provider.ContactsContract
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -84,8 +80,6 @@ fun SecondaryContactForm(navController: NavController, googleAuthClient: GoogleA
             }
         }
     }
-
-    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -219,76 +213,10 @@ fun SecondaryContactForm(navController: NavController, googleAuthClient: GoogleA
         cursor?.close()
     }
 
-    fun startVoiceInput() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the full name of the primary contact")
-        }
-        speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                if (!matches.isNullOrEmpty()) {
-                    secondaryName = matches[0]
-                    fetchSuggestions(secondaryName)
-                    tts.speak("Showing suggestions for ${matches[0]}", TextToSpeech.QUEUE_FLUSH, null, null)
-                }
-            }
-            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        speechRecognizer.startListening(intent)
-    }
-
-    fun startPhoneVoiceInput() {
-        tts.speak("Please say the phone number", TextToSpeech.QUEUE_FLUSH, null, null)
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say the phone number")
-        }
-        speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                if (!matches.isNullOrEmpty()) {
-                    // Process the spoken phone number - remove spaces and non-numeric characters
-                    val phoneNumber = matches[0].replace(Regex("[^0-9]"), "")
-                    secondaryPhone = phoneNumber
-                    tts.speak("Phone number set to $phoneNumber", TextToSpeech.QUEUE_FLUSH, null, null)
-                }
-            }
-            override fun onError(error: Int) { Toast.makeText(context, "Speech Error", Toast.LENGTH_SHORT).show() }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        speechRecognizer.startListening(intent)
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-//            .pointerInput(Unit) {
-//                detectTapGestures(
-//                    onTap = {
-//                       submitContact()
-//                        tts.speak("Submitting contact", TextToSpeech.QUEUE_FLUSH, null, null)
-//                    },
-//                    onDoubleTap = {
-//                        tts.speak("Voice input for contact name", TextToSpeech.QUEUE_FLUSH, null, null)
-//                        startVoiceInput()
-//                    }
-//                )
-//            }
             .statusBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

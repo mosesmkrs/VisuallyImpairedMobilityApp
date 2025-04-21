@@ -1,30 +1,18 @@
 package pages
 
 // Add these imports at the top
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.draw.*
-import kotlin.math.roundToInt
-import apis.GtfsDataHandler
-import apis.GtfsLocation
-import org.json.JSONArray
-import okhttp3.*
-import java.util.concurrent.TimeUnit
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
-import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,32 +33,29 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -77,6 +63,8 @@ import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import apis.GtfsDataHandler
+import apis.GtfsLocation
 import com.example.newapp.R
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -85,10 +73,15 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import components.Footer
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
@@ -101,18 +94,8 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
-import androidx.compose.foundation.lazy.items
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.coroutineScope
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.foundation.layout.offset
-import androidx.compose.material3.ButtonDefaults
-import coil.util.CoilUtils.result
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
 
 
 data class Alert(
@@ -225,18 +208,6 @@ fun NavigationPage(navController: NavController) {
         onDispose {
             tts?.stop()
             tts?.shutdown()
-        }
-    }
-
-    // Voice Input Launcher
-    val voiceInputLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val data: Intent? = result.data
-        val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
-        if (!spokenText.isNullOrEmpty()) {
-            destinationText = spokenText
-            tts!!.speak("You entered $spokenText", TextToSpeech.QUEUE_FLUSH, null, null)
         }
     }
 
@@ -523,21 +494,7 @@ fun NavigationPage(navController: NavController) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .zIndex(1f)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                            )
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                        }
-                        voiceInputLauncher.launch(intent)
-                    }
-                )
-            },
+                .zIndex(1f),
             shape = RoundedCornerShape(20.dp),
             trailingIcon = {
                 Button(
@@ -833,6 +790,10 @@ fun NavigationPage(navController: NavController) {
                         Configuration.getInstance()
                             .load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                         controller.setZoom(18.0)
+                        setMultiTouchControls(true)
+                        setBuiltInZoomControls(false)
+                        setTilesScaledToDpi(true)
+                        setUseDataConnection(false) // Use offline tiles if available
                     }
                 },
                 update = { mapView ->
@@ -860,7 +821,11 @@ fun NavigationPage(navController: NavController) {
                             val polyline = Polyline().apply {
                                 setPoints(routePoints)
                                 color = Color.Blue.hashCode()
-                                width = 5f
+                                width = 12f
+                                isGeodesic = true
+                                outlinePaint.strokeWidth = 12f
+                                outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                                outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(2f, 30f), 0f)
                             }
                             mapView.overlays.add(polyline)
                         }
