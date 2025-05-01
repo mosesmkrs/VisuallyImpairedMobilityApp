@@ -365,9 +365,31 @@ fun NavigationPage(navController: NavController) {
 
                             for (i in 0 until steps.length()) {
                                 val step = steps.getJSONObject(i)
-                                val instruction = step.getString("instruction")
+                                var instruction = step.getString("instruction")
                                 val stepDistance = step.getDouble("distance")
-                                instructions.add("$instruction (${formatDistance(stepDistance)})")
+                                val distanceStr = formatDistance(stepDistance)
+
+                                // Replace any 'head ...' or 'continue ...' instruction with 'continue straight' for accessibility
+                                val headOrContinueRegex = Regex("""^(head|continue)(\s+(north|south|east|west|northeast|northwest|southeast|southwest))?""", RegexOption.IGNORE_CASE)
+                                if (headOrContinueRegex.containsMatchIn(instruction.trim())) {
+                                    instruction = "continue straight"
+                                }
+
+                                val pattern = Regex("""^(.*)\((\d+\s*[a-zA-Z]*)\)""")
+                                val match = pattern.find("$instruction ($distanceStr)")
+                                val formattedInstruction = if (instruction.equals("continue straight", ignoreCase = true)) {
+                                    // For "continue straight" use: Continue straight for 39m
+                                    "Continue straight for $distanceStr"
+                                } else if (match != null) {
+                                    // For turns, use: In 50m turn right
+                                    val action = match.groupValues[1].trim().removeSuffix(",")
+                                    val distance = match.groupValues[2].trim()
+                                    "In $distance $action"
+                                } else {
+                                    // Fallback
+                                    "In $distanceStr $instruction"
+                                }
+                                instructions.add(formattedInstruction)
                             }
 
                             // Cancel the repeating announcement
@@ -1215,4 +1237,3 @@ fun formatDuration(durationInMinutes: Double): String {
 fun calculateDistanceToNextStep(userLocation: GeoPoint, stepPoint: GeoPoint): Double {
     return calculateDistance(userLocation, stepPoint)
 }
-

@@ -290,40 +290,40 @@ fun ProfilePage(googleAuthClient: GoogleAuthClient,
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-
-            // Database Viewer Button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFEFEFEF), shape = RoundedCornerShape(12.dp))
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { navController.navigate(Routes.DatabaseViewerScreen) }
-                    .padding(12.dp)
-                    .semantics { contentDescription = "Database Viewer. View SQLite database tables." },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.settings_icon), // Using settings icon as placeholder
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Database Viewer",
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    painter = painterResource(id = R.drawable.arrow_forward_icon),
-                    contentDescription = null,
-                    tint = Color.Gray,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
+//        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+//
+//            // Database Viewer Button
+//            Row(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .background(Color(0xFFEFEFEF), shape = RoundedCornerShape(12.dp))
+//                    .clip(RoundedCornerShape(12.dp))
+//                    .clickable { navController.navigate(Routes.DatabaseViewerScreen) }
+//                    .padding(12.dp)
+//                    .semantics { contentDescription = "Database Viewer. View SQLite database tables." },
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                Icon(
+//                    painter = painterResource(id = R.drawable.settings_icon), // Using settings icon as placeholder
+//                    contentDescription = null,
+//                    tint = Color.Black,
+//                    modifier = Modifier.size(24.dp)
+//                )
+//                Spacer(modifier = Modifier.width(8.dp))
+//                Text(
+//                    text = "Database Viewer",
+//                    fontWeight = FontWeight.Medium,
+//                    fontSize = 16.sp,
+//                    modifier = Modifier.weight(1f)
+//                )
+//                Icon(
+//                    painter = painterResource(id = R.drawable.arrow_forward_icon),
+//                    contentDescription = null,
+//                    tint = Color.Gray,
+//                    modifier = Modifier.size(20.dp)
+//                )
+//            }
+//        }
 
         Spacer(modifier = Modifier.weight(1f))
         Footer(navController)

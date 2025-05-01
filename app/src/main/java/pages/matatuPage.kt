@@ -156,6 +156,9 @@ fun MatatuPage(navController: NavController) {
     var currentDirectionIndex by remember { mutableStateOf(0) }
     var isReadingDirections by remember { mutableStateOf(false) }
 
+    // State for matatu directions
+    var currentMatatuDirectionIndex by remember { mutableStateOf(0) }
+
     // Add this at the top of the MatatuPage composable
     val repeatingAnnouncementScope = rememberCoroutineScope()
     var routeFindingJob: Job? by remember { mutableStateOf(null) }
@@ -314,24 +317,62 @@ fun MatatuPage(navController: NavController) {
 
                             for (i in 0 until steps.length()) {
                                 val step = steps.getJSONObject(i)
-                                val instruction = step.getString("instruction")
+                                var instruction = step.getString("instruction")
                                 val stepDistance = step.getDouble("distance")
-                                instructions.add("$instruction (${formatDistance(stepDistance)})")
-                            }
+                                val distanceStr = formatDistance(stepDistance)
 
-                            onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
-
-                            checkRouteAlerts(routePoints) { alerts ->
-                                if (alerts.isNotEmpty()) {
-                                    val alertMessage = alerts.joinToString("\n") { it.description }
-                                    tts?.speak(
-                                        "Route alerts: $alertMessage",
-                                        TextToSpeech.QUEUE_ADD,
-                                        null,
-                                        null
-                                    )
+                                // Replace any 'head ...' or 'continue ...' instruction with 'continue straight' for accessibility
+                                val headOrContinueRegex = Regex("""^(head|continue)(\s+(north|south|east|west|northeast|northwest|southeast|southwest))?""", RegexOption.IGNORE_CASE)
+                                if (headOrContinueRegex.containsMatchIn(instruction.trim())) {
+                                    instruction = "continue straight"
                                 }
+
+                                // Format as: Continue straight for 39m, Turn left for 20m, etc.
+                                val pattern = Regex("""^(.*)\((\d+\s*[a-zA-Z]*)\)""")
+                                val match = pattern.find("$instruction ($distanceStr)")
+                                val formattedInstruction = if (instruction.equals("continue straight", ignoreCase = true)) {
+                                    // For "continue straight" use: Continue straight for 39m
+                                    "Continue straight for $distanceStr"
+                                } else if (match != null) {
+                                    // For turns, use: In 50m turn right
+                                    val action = match.groupValues[1].trim().removeSuffix(",")
+                                    val distance = match.groupValues[2].trim()
+                                    "In $distance $action"
+                                } else {
+                                    // Fallback
+                                    "In $distanceStr $instruction"
+                                }
+
+                                instructions.add(formattedInstruction)
                             }
+
+                            val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
+                                // After TTS finishes, load the instructions
+                                onRouteReceived(routePoints, formattedDistance, formattedDuration, instructions)
+                            }
+
+                            // Set the listener to TTS
+                            val params = HashMap<String, String>()
+                            params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "route_found_utterance"
+                            tts?.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
+
+                            // Make the final announcement before calling the callback
+                            tts?.speak(
+                                "Route to nearest matatu stop is found. Follow these instructions.",
+                                TextToSpeech.QUEUE_FLUSH,
+                                params
+                            )
+//                            checkRouteAlerts(routePoints) { alerts ->
+//                                if (alerts.isNotEmpty()) {
+//                                    val alertMessage = alerts.joinToString("\n") { it.description }
+//                                    tts?.speak(
+//                                        "WARNING!!!: $alertMessage",
+//                                        TextToSpeech.QUEUE_ADD,
+//                                        null,
+//                                        null
+//                                    )
+//                                }
+//                            }
                         }
                     } catch (e: Exception) {
                         Log.e("ROUTE_ERROR", "Error parsing response: ${e.message}")
@@ -392,32 +433,32 @@ fun MatatuPage(navController: NavController) {
 
         // Start the repeating announcement
         val repeatingAnnouncementScope = CoroutineScope(Dispatchers.Main)
-        val routeFindingJob = repeatingAnnouncementScope.launch {
-            try {
-                // Initial announcement
-                Log.d("MatatuPage", "Starting repeating announcement for matatu route")
-                tts?.speak(
-                    "Finding matatu route to ${destinationStop.name}, please wait", 
-                    TextToSpeech.QUEUE_FLUSH, 
-                    null, 
-                    null
-                )
-                
-                // Repeat every 6 seconds until cancelled
-                while (isActive) {
-                    kotlinx.coroutines.delay(6000) // Wait 6 seconds
-                    Log.d("MatatuPage", "Repeating announcement for matatu route")
-                    tts?.speak(
-                        "Finding matatu route to ${destinationStop.name}, please wait", 
-                        TextToSpeech.QUEUE_FLUSH, 
-                        null, 
-                        null
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("MatatuPage", "Error in repeating announcement: ${e.message}")
-            }
-        }
+//        val routeFindingJob = repeatingAnnouncementScope.launch {
+//            try {
+//                // Initial announcement
+//                Log.d("MatatuPage", "Starting repeating announcement for matatu route")
+//                tts?.speak(
+//                    "Finding matatu route to ${destinationStop.name}, please wait",
+//                    TextToSpeech.QUEUE_FLUSH,
+//                    null,
+//                    null
+//                )
+//
+//                // Repeat every 6 seconds until cancelled
+//                while (isActive) {
+//                    kotlinx.coroutines.delay(6000) // Wait 6 seconds
+//                    Log.d("MatatuPage", "Repeating announcement for matatu route")
+//                    tts?.speak(
+//                        "Finding matatu route to ${destinationStop.name}, please wait",
+//                        TextToSpeech.QUEUE_FLUSH,
+//                        null,
+//                        null
+//                    )
+//                }
+//            } catch (e: Exception) {
+//                Log.e("MatatuPage", "Error in repeating announcement: ${e.message}")
+//            }
+//        }
 
         // Get the stops for this route from the GTFS data
         val routeStopIds = route.stops
@@ -534,7 +575,7 @@ fun MatatuPage(navController: NavController) {
             totalDistance += calculateDistance(matatuRoutePoints[i], matatuRoutePoints[i + 1])
         }
         
-        val distanceKm = totalDistance
+        val distanceKm = totalDistance / 1000.0 // Convert meters to kilometers
         val durationMin = distanceKm * 3 // Assuming average speed of 20 km/h (3 minutes per km)
         
         val formattedDistance = String.format("%.2f Km", distanceKm)
@@ -571,25 +612,28 @@ fun MatatuPage(navController: NavController) {
         )
         
         // Cancel the repeating announcement now that we have the route
-        routeFindingJob.cancel()
+//        routeFindingJob.cancel()
+
+
+        onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
         
         // Set up a listener for when TTS finishes speaking
-        val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
-            // After TTS finishes, load the instructions
-        onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
-        }
-
-        // Set the listener to TTS
-        val params = HashMap<String, String>()
-        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "route_found_utterance"
-        tts?.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
-
-        // Make the final announcement before calling the callback
-        tts?.speak(
-            "Route to ${destinationStop.name} is found. Follow these instructions.",
-            TextToSpeech.QUEUE_FLUSH,
-            params
-        )
+//        val onUtteranceCompletedListener = TextToSpeech.OnUtteranceCompletedListener { utteranceId ->
+//            // After TTS finishes, load the instructions
+//            onRouteReceived(matatuRoutePoints, formattedDistance, formattedDuration, directions)
+//        }
+//
+//        // Set the listener to TTS
+//        val params = HashMap<String, String>()
+//        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "route_found_utterance"
+//        tts?.setOnUtteranceCompletedListener(onUtteranceCompletedListener)
+//
+//        // Make the final announcement before calling the callback
+//        tts?.speak(
+//            "Route to ${destinationStop.name} is found. Follow these instructions.",
+//            TextToSpeech.QUEUE_FLUSH,
+//            params
+//        )
     }
 
     // Function to fetch coordinates from a location name
@@ -714,39 +758,24 @@ fun MatatuPage(navController: NavController) {
                                         walkingDirections = directions
                                         walkingDistance = distance
                                         walkingDuration = duration
-                                        
-                                        // Now fetch the matatu route from nearest stop to destination stop
-                                        fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
-                                            matatuRoutePath = matatuRoutePoints
-                                            matatuRouteDirections = matatuDirections
-                                            matatuRouteDistance = matatuDistance
-                                            matatuRouteDuration = matatuDuration
-                                            
-                                            // Combine walking and matatu directions for the complete journey
-                                            val completeDirections = mutableListOf<String>()
-                                            completeDirections.add("Walking to Matatu Stop")
-                                            completeDirections.addAll(directions)
-                                            completeDirections.add("Matatu Journey")
-                                            completeDirections.addAll(matatuDirections)
-                                            
-                                            // Update the UI
-                                            showDirectionsPanel = true
-                                            currentDirectionIndex = 0
-                                            
-                                            // Announce the result to the user
-                                            val announcement = "Found a matatu route to your destination. " +
-                                                    "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
-                                                    "${result.route.name} to ${result.destinationStop.name}. " +
-                                                    "The matatu journey will take approximately $matatuDuration."
-                                            
-                                            tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                            
-                                            // Only announce that we found a route, then read the first direction
-                                            readRouteAnnouncement(tts!!, destinationText)
-                                            
-                                            // Set the current direction index to the first step
-                                            currentDirectionIndex = 0
+
+                                        // UI update happens IMMEDIATELY after walking route is found!
+                                        showDirectionsPanel = true
+                                        currentDirectionIndex = 0
+                                        // Optionally, announce the first walking instruction
+                                        if (walkingDirections.isNotEmpty()) {
+                                            tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
                                         }
+                                    }
+                                    // Fetch the matatu route in the background (do NOT wait for it)
+                                    fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
+                                        matatuRoutePath = matatuRoutePoints
+                                        matatuRouteDirections = matatuDirections
+                                        matatuRouteDistance = matatuDistance
+                                        matatuRouteDuration = matatuDuration
+                                        Log.d("MatatuPage", "Received matatu route with ${matatuRoutePoints.size} points")
+                                        // Clear loading message if needed
+                                        errorMessage = null
                                     }
                                 }
                             } else {
@@ -800,7 +829,7 @@ fun MatatuPage(navController: NavController) {
                                     showSuggestions = false
                                     
                                     // Provide feedback that we're processing the selection
-                                    tts?.speak(" matatu to ${selectedSuggestion.name}, please wait", TextToSpeech.QUEUE_FLUSH, null, null)
+                                    tts?.speak("Finding nearest stage to ${selectedSuggestion.name}, please wait", TextToSpeech.QUEUE_FLUSH, null, null)
                                     errorMessage = null // Clear any previous error messages
 
                                     // If we have coordinates for this suggestion, use them directly
@@ -812,38 +841,38 @@ fun MatatuPage(navController: NavController) {
 
                                         if (userLocation != null) {
                                             Log.d("MatatuPage", "User location is available: $userLocation")
-                                            
+
                                             // Show loading indicator or message
-                                            errorMessage = "Finding matatu route to ${selectedSuggestion.name}, please wait..."
+                                            //errorMessage = "Finding matatu route in the background..."
                                             
                                             // Create a repeating announcement for visually impaired users
-                                            routeFindingJob = repeatingAnnouncementScope.launch {
-                                                try {
-                                                    // Initial announcement
-                                                    Log.d("MatatuPage", "Starting repeating announcement for ${selectedSuggestion.name}")
-                                                    tts?.speak(
-                                                        "Finding matatu route to ${selectedSuggestion.name}, please wait",
-                                                        TextToSpeech.QUEUE_ADD, 
-                                                        null, 
-                                                        null
-                                                    )
-                                                    
-                                                    // Repeat every 3 seconds until cancelled
-                                                    while (isActive) {
-                                                        kotlinx.coroutines.delay(6000) // Wait 6 seconds
-                                                        Log.d("MatatuPage", "Repeating announcement for ${selectedSuggestion.name}")
-                                                        tts?.speak(
-                                                            "Finding matatu route to ${selectedSuggestion.name}, please wait",
-                                                            TextToSpeech.QUEUE_ADD, 
-                                                            null, 
-                                                            null
-                                                        )
-                                                    }
-                                                } catch (e: Exception) {
-                                                    // If there's an error, log it
-                                                    Log.e("MatatuPage", "Error in repeating announcement: ${e.message}")
-                                                }
-                                            }
+//                                            routeFindingJob = repeatingAnnouncementScope.launch {
+//                                                try {
+//                                                    // Initial announcement
+//                                                    Log.d("MatatuPage", "Starting repeating announcement for ${selectedSuggestion.name}")
+//                                                    tts?.speak(
+//                                                        "Finding matatu route to ${selectedSuggestion.name}, please wait",
+//                                                        TextToSpeech.QUEUE_ADD,
+//                                                        null,
+//                                                        null
+//                                                    )
+//
+//                                                    // Repeat every 3 seconds until cancelled
+//                                                    while (isActive) {
+//                                                        kotlinx.coroutines.delay(6000) // Wait 6 seconds
+//                                                        Log.d("MatatuPage", "Repeating announcement for ${selectedSuggestion.name}")
+//                                                        tts?.speak(
+//                                                            "Finding matatu route to ${selectedSuggestion.name}, please wait",
+//                                                            TextToSpeech.QUEUE_ADD,
+//                                                            null,
+//                                                            null
+//                                                        )
+//                                                    }
+//                                                } catch (e: Exception) {
+//                                                    // If there's an error, log it
+//                                                    Log.e("MatatuPage", "Error in repeating announcement: ${e.message}")
+//                                                }
+//                                            }
                                             
                                             // First, try to find the nearest matatu stop that serves this destination
                                             val result = matatuRouteHandler.findNearestStopToDestination(
@@ -851,8 +880,8 @@ fun MatatuPage(navController: NavController) {
                                             )
 
                                              // Cancel the repeating announcement
-                                            routeFindingJob?.cancel()
-                                            routeFindingJob = null
+//                                            routeFindingJob?.cancel()
+//                                            routeFindingJob = null
                                              
                                              if (result != null) {
                                                  Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
@@ -867,8 +896,17 @@ fun MatatuPage(navController: NavController) {
                                                     walkingDirections = directions
                                                     walkingDistance = distance
                                                     walkingDuration = duration
-                                                    
+
                                                     Log.d("MatatuPage", "Received walking route with ${newRoutePoints.size} points")
+                                                    
+                                                    // UI update happens IMMEDIATELY after walking route is found!
+                                                    showDirectionsPanel = true
+                                                    currentDirectionIndex = 0
+                                                    
+                                                    // Optionally, announce the first walking instruction
+                                                    if (walkingDirections.isNotEmpty()) {
+                                                        tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
+                                                    }
                                                     
                                                     // Now fetch the matatu route from nearest stop to destination stop
                                                     fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
@@ -894,18 +932,18 @@ fun MatatuPage(navController: NavController) {
                                                         currentDirectionIndex = 0
                                                         
                                                         // Announce the result to the user
-                                                        val announcement = "Found a matatu route to your destination. " +
-                                                                "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
-                                                                "${result.route.name} to ${result.destinationStop.name}. " +
-                                                                "The matatu journey will take approximately $matatuDuration."
-                                                        
-                                                        tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                                        
-                                                        // Only announce that we found a route, then read the first direction
-                                                        readRouteAnnouncement(tts!!, selectedSuggestion.name)
-                                                        
-                                                        // Set the current direction index to the first step
-                                                        currentDirectionIndex = 0
+//                                                        val announcement = "Found a matatu route to your destination. " +
+//                                                                "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
+//                                                                "${result.route.name} to ${result.destinationStop.name}. " +
+//                                                                "The matatu journey will take approximately $matatuDuration."
+//
+//                                                        tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
+//
+//                                                        // Only announce that we found a route, then read the first direction
+//                                                        readRouteAnnouncement(tts!!, selectedSuggestion.name)
+//
+//                                                        // Set the current direction index to the first step
+//                                                        currentDirectionIndex = 0
                                                     }
                                                 }
                                             } else {
@@ -949,6 +987,15 @@ fun MatatuPage(navController: NavController) {
                                                             
                                                             Log.d("MatatuPage", "Received walking route with ${newRoutePoints.size} points")
                                                             
+                                                            // UI update happens IMMEDIATELY after walking route is found!
+                                                            showDirectionsPanel = true
+                                                            currentDirectionIndex = 0
+                                                            
+                                                            // Optionally, announce the first walking instruction
+                                                            if (walkingDirections.isNotEmpty()) {
+                                                                tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
+                                                            }
+                                                            
                                                             // Now fetch the matatu route from nearest stop to destination stop
                                                             fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
                                                                 matatuRoutePath = matatuRoutePoints
@@ -973,18 +1020,18 @@ fun MatatuPage(navController: NavController) {
                                                                 currentDirectionIndex = 0
                                                                 
                                                                 // Announce the result to the user
-                                                                val announcement = "Found a matatu route to your destination. " +
-                                                                        "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
-                                                                        "${result.route.name} to ${result.destinationStop.name}. " +
-                                                                        "The matatu journey will take approximately $matatuDuration."
-                                                                
-                                                                tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-                                                                
-                                                                // Only announce that we found a route, then read the first direction
-                                                                readRouteAnnouncement(tts!!, selectedSuggestion.name)
-                                                                
-                                                                // Set the current direction index to the first step
-                                                                currentDirectionIndex = 0
+//                                                                val announcement = "Found a matatu route to your destination. " +
+//                                                                        "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
+//                                                                        "${result.route.name} to ${result.destinationStop.name}. " +
+//                                                                        "The matatu journey will take approximately $matatuDuration."
+//
+//                                                                tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
+//
+//                                                                // Only announce that we found a route, then read the first direction
+//                                                                readRouteAnnouncement(tts!!, selectedSuggestion.name)
+//
+//                                                                // Set the current direction index to the first step
+//                                                                currentDirectionIndex = 0
                                                             }
                                                         }
                                                     }
@@ -1005,90 +1052,130 @@ fun MatatuPage(navController: NavController) {
         }
         // Directions panel
         if (showDirectionsPanel && walkingDirections.isNotEmpty()) {
-            Card(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(Color(0xFFE3F2FD))
                     .padding(16.dp)
-                    .zIndex(2f),
-                shape = RoundedCornerShape(10.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // Header with summary info
-                    Text(
-                        text = "Walking Directions",
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                Text(
+                    text = "Walking Directions to Nearest Matatu Stop",
+                    fontSize = 18.sp,
+                    color = Color.Black,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text("Distance: $walkingDistance, Duration: $walkingDuration", fontSize = 14.sp, color = Color.DarkGray)
+                Spacer(modifier = Modifier.height(8.dp))
+                // Only show the current instruction
+                if (currentDirectionIndex in walkingDirections.indices) {
+                    DirectionItem(
+                        direction = walkingDirections[currentDirectionIndex],
+                        isActive = true,
+                        onClick = { tts?.speak(walkingDirections[currentDirectionIndex], TextToSpeech.QUEUE_FLUSH, null, null) }
                     )
-
-                    Text(
-                        text = "Distance: $walkingDistance • Duration: $walkingDuration",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-
-                    // Only show the current direction
-                    if (currentDirectionIndex >= 0 && currentDirectionIndex < walkingDirections.size) {
-                        val currentDirection = walkingDirections[currentDirectionIndex]
-                        
-                        // Current step indicator
-                        Text(
-                            text = "Step ${currentDirectionIndex + 1} of ${walkingDirections.size}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        // Current direction
-                        DirectionItem(
-                            direction = currentDirection,
-                            isActive = true,
-                            onClick = {
-                                // Read the current direction
-                                tts?.speak(currentDirection, TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Button(
+                        onClick = {
+                            if (currentDirectionIndex > 0) {
+                                currentDirectionIndex--
+                                tts?.speak(walkingDirections[currentDirectionIndex], TextToSpeech.QUEUE_FLUSH, null, null)
                             }
-                        )
-                        
-                        // Read the direction automatically when it changes
-                        LaunchedEffect(currentDirectionIndex) {
-                            tts?.speak(currentDirection, TextToSpeech.QUEUE_FLUSH, null, null)
-                        }
-                    }
-
-                    // No navigation controls for visually impaired users - directions are read automatically
-
-                    // Only show the Hide button
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.End
+                        },
+                        enabled = currentDirectionIndex > 0
                     ) {
-                        Button(
-                            onClick = {
-                                // Hide directions panel
-                                showDirectionsPanel = false
+                        Text("Previous")
+                    }
+                    Button(
+                        onClick = {
+                            if (currentDirectionIndex < walkingDirections.size - 1) {
+                                currentDirectionIndex++
+                                tts?.speak(walkingDirections[currentDirectionIndex], TextToSpeech.QUEUE_FLUSH, null, null)
                             }
-                        ) {
-                            Text("Hide")
-                        }
+                        },
+                        enabled = currentDirectionIndex < walkingDirections.size - 1
+                    ) {
+                        Text("Next")
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                // Show button to proceed to matatu journey after last step
+                if (currentDirectionIndex == walkingDirections.size - 1) {
+                    Button(
+                        onClick = {
+                            showDirectionsPanel = false
+                            tts?.speak("You have reached the matatu stop. Here are your matatu journey instructions.", TextToSpeech.QUEUE_FLUSH, null, null)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Show Matatu Journey")
                     }
                 }
             }
-        } else if (!showDirectionsPanel && walkingDirections.isNotEmpty()) {
-            // Show Instructions button when panel is hidden
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .zIndex(2f),
-                contentAlignment = Alignment.TopEnd
+        }
+
+        // Show matatu journey instructions ONLY after user confirms arrival at stop
+        if (!showDirectionsPanel && matatuRouteDirections.isNotEmpty()) {
+            // Ensure the introductory statement and first instruction are read aloud when entering the matatu journey panel
+            LaunchedEffect(key1 = !showDirectionsPanel) {
+                if (matatuRouteDirections.isNotEmpty()) {
+                    tts?.speak("You have arrived at the stop. Here are your matatu journey instructions.", TextToSpeech.QUEUE_FLUSH, null, null)
+                    tts?.speak(matatuRouteDirections[0], TextToSpeech.QUEUE_ADD, null, null)
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF1F8E9))
+                    .padding(16.dp)
             ) {
-                Button(
-                    onClick = {
-                        showDirectionsPanel = true
-                    }
+                Text(
+                    text = "Matatu Journey Instructions",
+                    fontSize = 18.sp,
+                    color = Color.Black,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text("Distance: $matatuRouteDistance, Duration: $matatuRouteDuration", fontSize = 14.sp, color = Color.DarkGray)
+                Spacer(modifier = Modifier.height(8.dp))
+                // Only show the current matatu instruction
+                if (currentMatatuDirectionIndex in matatuRouteDirections.indices) {
+                    DirectionItem(
+                        direction = matatuRouteDirections[currentMatatuDirectionIndex],
+                        isActive = true,
+                        onClick = { tts?.speak(matatuRouteDirections[currentMatatuDirectionIndex], TextToSpeech.QUEUE_FLUSH, null, null) }
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Show Instructions")
+                    Button(
+                        onClick = {
+                            if (currentMatatuDirectionIndex > 0) {
+                                currentMatatuDirectionIndex--
+                                tts?.speak(matatuRouteDirections[currentMatatuDirectionIndex], TextToSpeech.QUEUE_FLUSH, null, null)
+                            }
+                        },
+                        enabled = currentMatatuDirectionIndex > 0
+                    ) {
+                        Text("Previous")
+                    }
+                    Button(
+                        onClick = {
+                            if (currentMatatuDirectionIndex < matatuRouteDirections.size - 1) {
+                                currentMatatuDirectionIndex++
+                                tts?.speak(matatuRouteDirections[currentMatatuDirectionIndex], TextToSpeech.QUEUE_FLUSH, null, null)
+                            }
+                        },
+                        enabled = currentMatatuDirectionIndex < matatuRouteDirections.size - 1
+                    ) {
+                        Text("Next")
+                    }
                 }
             }
         }
@@ -1623,13 +1710,13 @@ fun readCurrentDirection(tts: TextToSpeech, direction: String) {
  */
 fun readRouteAnnouncement(tts: TextToSpeech, destinationName: String = "your destination") {
     // Announce that we've found a route to the nearest stop for the destination
-    tts.speak(
-        "Route to $destinationName is found. Follow these instructions.", 
-        TextToSpeech.QUEUE_FLUSH, 
-        null, 
-        null
-    )
-    
+//    tts.speak(
+//        "Route to $destinationName is found. Follow these instructions.",
+//        TextToSpeech.QUEUE_FLUSH,
+//        null,
+//        null
+//    )
+
     // Add a delay using playSilentUtterance before the first instruction
     tts.playSilentUtterance(3000, TextToSpeech.QUEUE_ADD, null)
 }
