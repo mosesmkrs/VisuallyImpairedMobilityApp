@@ -13,7 +13,7 @@ import com.google.android.gms.common.api.CommonStatusCodes
 import kotlinx.coroutines.tasks.await
 import kotlin.coroutines.cancellation.CancellationException
 
-class GoogleAuthClient(
+open class GoogleAuthClient(
     private val context: Context,
 ) {
     private val tag = "GoogleAuthClient: "
@@ -38,7 +38,7 @@ class GoogleAuthClient(
         return currentUser
     }
 
-    fun getUserId(): String? {
+    open fun getUserId(): String? {
         Log.d(tag, "Getting user ID: ${currentUser?.id}")
         return currentUser?.id
     }

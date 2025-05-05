@@ -1,3 +1,4 @@
+import org.gradle.kotlin.dsl.androidTestImplementation
 import java.util.Properties
 
 plugins {
@@ -84,6 +85,7 @@ dependencies {
     // Compose LiveData integration
     implementation("androidx.compose.runtime:runtime-livedata:1.6.0")
     testImplementation(libs.junit)
+    androidTestImplementation ("androidx.navigation:navigation-testing:2.8.9")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -100,6 +102,7 @@ dependencies {
     implementation(libs.converter.scalars)
 
 
+
     implementation(libs.coil.compose)
     implementation("org.osmdroid:osmdroid-android:6.1.10")
     implementation ("com.google.android.gms:play-services-location:21.0.1")
@@ -110,6 +113,8 @@ dependencies {
     implementation ("com.google.android.gms:play-services-location:21.0.1")
 
 
+    androidTestImplementation ("androidx.test:core:1.5.0")
+    androidTestImplementation ("androidx.test.ext:junit:1.1.5")
 //    implementation(libs.pusher)
 //    implementation(libs.google.maps)
 //    implementation(libs.retrofit)
