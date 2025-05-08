@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.util.Log
+import com.example.newapp.BuildConfig
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.BeginSignInResult
 import com.google.android.gms.auth.api.identity.SignInClient
@@ -20,7 +21,7 @@ open class GoogleAuthClient(
     private val oneTapClient: SignInClient = Identity.getSignInClient(context)
 
     // Server client ID from google-services.json
-    private val serverClientId = "663604971731-j4vgnp262u3cu9l2vissqhakfcess5i4.apps.googleusercontent.com"
+    private val serverClientId = "325272585441-cr2ei5ck5o9qsrv7abgpjcjqtj97ct6n.apps.googleusercontent.com"
 
     // User information
     private var currentUser: GoogleUser? = null

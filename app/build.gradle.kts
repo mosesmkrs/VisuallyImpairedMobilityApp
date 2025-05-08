@@ -26,21 +26,37 @@ android {
             load(project.rootProject.file("local.properties").inputStream())
         }
 
+        val secrets = Properties().apply {
+            load(project.rootProject.file("secrets.properties").inputStream())
+        }
+
         buildConfigField("String", "API_KEY", "\"${properties.getProperty("API_KEY")}\"")
         buildConfigField("String", "FIREBASE_KEY", "\"${properties.getProperty("FIREBASE_KEY")}\"")
         buildConfigField("String", "GRASSHOPPER_API_KEY", "\"${properties.getProperty("GRASHOPPER_API_KEY")}\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${secrets.getProperty("GOOGLE_CLIENT_ID")}\"")
+    }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("keystore.jks")
+            storePassword = "C2022_WmatatU"
+            keyAlias = "key0"
+            keyPassword = "C2022_WmatatU"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -74,7 +90,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("com.google.android.gms:play-services-vision:20.1.3")
     implementation("androidx.security:security-crypto:1.0.0")
-    
+    apply(plugin = "com.google.gms.google-services")
+
     // Room dependencies
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

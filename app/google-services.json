@@ -1,44 +1,35 @@
 {
   "project_info": {
-    "project_number": "663604971731",
-    "project_id": "visuallyimpairedmobility-79afe",
-    "storage_bucket": "visuallyimpairedmobility-79afe.firebasestorage.app"
+    "project_number": "325272585441",
+    "project_id": "tembeanami",
+    "storage_bucket": "tembeanami.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:663604971731:android:791ec45ef8c2f05fd0ac26",
+        "mobilesdk_app_id": "1:325272585441:android:d0663c21640b4481dde3a0",
         "android_client_info": {
           "package_name": "com.example.newapp"
         }
       },
       "oauth_client": [
         {
-          "client_id": "663604971731-44qhju4m9koq5jgp42ff6oda9qiun993.apps.googleusercontent.com",
+          "client_id": "325272585441-i9ukb89nejaejqnvcg4o5jnud8n29r1k.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.newapp",
-            "certificate_hash": "10ff6e4fe4bf9ffb10291cbad7b32014f2346fe5"
+            "certificate_hash": "8c54ef858c99f369c1723a2b8bee3e457273f938"
           }
-        },
-        {
-          "client_id": "663604971731-j4vgnp262u3cu9l2vissqhakfcess5i4.apps.googleusercontent.com",
-          "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyBw-KqBakfe-U7fJYBS6pamSTcA9BVuSKM"
+          "current_key": "AIzaSyDQSc-JpgUhp8VPYRBZat14af9Gn9bXFIg"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "663604971731-j4vgnp262u3cu9l2vissqhakfcess5i4.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

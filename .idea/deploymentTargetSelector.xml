@@ -28,6 +28,9 @@
       <SelectionState runConfigName="Tests in 'com.example.newapp' (1)">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+      <SelectionState runConfigName="TembeaNami.app">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
     </selectionStates>
   </component>
 </project>

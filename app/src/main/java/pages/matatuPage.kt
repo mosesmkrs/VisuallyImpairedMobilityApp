@@ -1194,8 +1194,6 @@ fun MatatuPage(navController: NavController) {
                     controller.setZoom(18.0)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
-                    setTilesScaledToDpi(true)
-                    setUseDataConnection(false) // Use offline tiles if available
                 }
             }, update = { mapView ->
                 userLocation?.let { location ->
