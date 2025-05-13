@@ -551,11 +551,11 @@ fun NavigationPage(navController: NavController) {
                             } else {
                                 errorMessage = "Location not found"
                                 isLoading = false
-
                             }
                         }
                     },
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(4.dp),
+                    enabled = destinationText.trim().length >= 2 // Disable until destination has enough input
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -568,6 +568,7 @@ fun NavigationPage(navController: NavController) {
                 }
             }
         )
+
         //Debug text to show suggestion state
         Text(
             text ="Suggestions:${if (showSuggestions) "Visible" else "Hidden"} (${locationSuggestions.size} items)",

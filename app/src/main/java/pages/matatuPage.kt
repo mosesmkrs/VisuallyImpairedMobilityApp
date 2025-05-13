@@ -783,7 +783,8 @@ fun MatatuPage(navController: NavController) {
                             }
                         }
                     },
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(4.dp),
+                            enabled = destinationText.trim().length >= 2 // Disable until destination has enough input
                 ) {
                     Text("Find matatu route")
                 }
