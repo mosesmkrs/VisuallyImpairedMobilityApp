@@ -843,121 +843,90 @@ fun MatatuPage(navController: NavController) {
                                         if (userLocation != null) {
                                             Log.d("MatatuPage", "User location is available: $userLocation")
 
-                                            // Show loading indicator or message
-                                            //errorMessage = "Finding matatu route in the background..."
-                                            
-                                            // Create a repeating announcement for visually impaired users
-//                                            routeFindingJob = repeatingAnnouncementScope.launch {
-//                                                try {
-//                                                    // Initial announcement
-//                                                    Log.d("MatatuPage", "Starting repeating announcement for ${selectedSuggestion.name}")
-//                                                    tts?.speak(
-//                                                        "Finding matatu route to ${selectedSuggestion.name}, please wait",
-//                                                        TextToSpeech.QUEUE_ADD,
-//                                                        null,
-//                                                        null
-//                                                    )
-//
-//                                                    // Repeat every 3 seconds until cancelled
-//                                                    while (isActive) {
-//                                                        kotlinx.coroutines.delay(6000) // Wait 6 seconds
-//                                                        Log.d("MatatuPage", "Repeating announcement for ${selectedSuggestion.name}")
-//                                                        tts?.speak(
-//                                                            "Finding matatu route to ${selectedSuggestion.name}, please wait",
-//                                                            TextToSpeech.QUEUE_ADD,
-//                                                            null,
-//                                                            null
-//                                                        )
-//                                                    }
-//                                                } catch (e: Exception) {
-//                                                    // If there's an error, log it
-//                                                    Log.e("MatatuPage", "Error in repeating announcement: ${e.message}")
-//                                                }
-//                                            }
-                                            
-                                            // First, try to find the nearest matatu stop that serves this destination
-                                            val result = matatuRouteHandler.findNearestStopToDestination(
-                                                userLocation!!, location
-                                            )
+                                            try {
+                                                // First, try to find the nearest matatu stop that serves this destination
+                                                val result = matatuRouteHandler.findNearestStopToDestination(
+                                                    userLocation!!, location
+                                                )
 
-                                             // Cancel the repeating announcement
-//                                            routeFindingJob?.cancel()
-//                                            routeFindingJob = null
-                                             
-                                             if (result != null) {
-                                                 Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
-                                                 nearestStopResult = result
-                                                 showingDirectionsToStop = true
-                                                 routePoints = emptyList() // Clear any existing direct route
+                                                if (result != null) {
+                                                    Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
+                                                    nearestStopResult = result
+                                                    showingDirectionsToStop = true
+                                                    routePoints = emptyList() // Clear any existing direct route
 
-                                                // Get walking directions to the nearest stop
-                                                val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
-                                                fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints: List<GeoPoint>, distance: String, duration: String, directions: List<String> ->
-                                                    walkingRouteToStop = newRoutePoints
-                                                    walkingDirections = directions
-                                                    walkingDistance = distance
-                                                    walkingDuration = duration
+                                                    // Get walking directions to the nearest stop
+                                                    val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
+                                                    fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints: List<GeoPoint>, distance: String, duration: String, directions: List<String> ->
+                                                        walkingRouteToStop = newRoutePoints
+                                                        walkingDirections = directions
+                                                        walkingDistance = distance
+                                                        walkingDuration = duration
 
-                                                    Log.d("MatatuPage", "Received walking route with ${newRoutePoints.size} points")
-                                                    
-                                                    // UI update happens IMMEDIATELY after walking route is found!
-                                                    showDirectionsPanel = true
-                                                    currentDirectionIndex = 0
-                                                    
-                                                    // Optionally, announce the first walking instruction
-                                                    if (walkingDirections.isNotEmpty()) {
-                                                        tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
-                                                    }
-                                                    
-                                                    // Now fetch the matatu route from nearest stop to destination stop
-                                                    fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
-                                                        matatuRoutePath = matatuRoutePoints
-                                                        matatuRouteDirections = matatuDirections
-                                                        matatuRouteDistance = matatuDistance
-                                                        matatuRouteDuration = matatuDuration
+                                                        Log.d("MatatuPage", "Received walking route with ${newRoutePoints.size} points")
                                                         
-                                                        Log.d("MatatuPage", "Received matatu route with ${matatuRoutePoints.size} points")
-                                                        
-                                                        // Clear loading message
-                                                        errorMessage = null
-                                                        
-                                                        // Combine walking and matatu directions for the complete journey
-                                                        val completeDirections = mutableListOf<String>()
-                                                        completeDirections.add("--- Walking to Matatu Stop ---")
-                                                        completeDirections.addAll(directions)
-                                                        completeDirections.add("--- Matatu Journey ---")
-                                                        completeDirections.addAll(matatuDirections)
-                                                        
-                                                        // Update the UI
+                                                        // UI update happens IMMEDIATELY after walking route is found!
                                                         showDirectionsPanel = true
                                                         currentDirectionIndex = 0
                                                         
-                                                        // Announce the result to the user
-//                                                        val announcement = "Found a matatu route to your destination. " +
-//                                                                "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
-//                                                                "${result.route.name} to ${result.destinationStop.name}. " +
-//                                                                "The matatu journey will take approximately $matatuDuration."
-//
-//                                                        tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-//
-//                                                        // Only announce that we found a route, then read the first direction
-//                                                        readRouteAnnouncement(tts!!, selectedSuggestion.name)
-//
-//                                                        // Set the current direction index to the first step
-//                                                        currentDirectionIndex = 0
+                                                        // Optionally, announce the first walking instruction
+                                                        if (walkingDirections.isNotEmpty()) {
+                                                            tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
+                                                        }
+                                                        
+                                                        // Now fetch the matatu route from nearest stop to destination stop
+                                                        fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
+                                                            matatuRoutePath = matatuRoutePoints
+                                                            matatuRouteDirections = matatuDirections
+                                                            matatuRouteDistance = matatuDistance
+                                                            matatuRouteDuration = matatuDuration
+                                                            
+                                                            Log.d("MatatuPage", "Received matatu route with ${matatuRoutePoints.size} points")
+                                                            
+                                                            // Clear loading message
+                                                            errorMessage = null
+                                                            
+                                                            // Combine walking and matatu directions for the complete journey
+                                                            val completeDirections = mutableListOf<String>()
+                                                            completeDirections.add("--- Walking to Matatu Stop ---")
+                                                            completeDirections.addAll(directions)
+                                                            completeDirections.add("--- Matatu Journey ---")
+                                                            completeDirections.addAll(matatuDirections)
+                                                            
+                                                            // Update the UI
+                                                            showDirectionsPanel = true
+                                                            currentDirectionIndex = 0
+                                                        }
                                                     }
+                                                } else {
+                                                    Log.e("MatatuPage", "Could not find a valid matatu route to the destination")
+                                                    errorMessage = "Sorry, I couldn't find a matatu route to ${selectedSuggestion.name}. This location might not be served by any matatu routes in our database."
+                                                    tts?.speak(
+                                                        "Sorry, I couldn't find a matatu route to ${selectedSuggestion.name}. This location might not be served by any matatu routes in our database.",
+                                                        TextToSpeech.QUEUE_FLUSH,
+                                                        null,
+                                                        null
+                                                    )
                                                 }
-                                            } else {
-                                                Log.e("MatatuPage", "Could not find a valid matatu route to the destination")
-                                                errorMessage = "Could not find a matatu route to ${selectedSuggestion.name}. Try another destination."
-                                                tts?.speak("Sorry, I could not find a matatu route to ${selectedSuggestion.name}. Please try another destination.", 
-                                                    TextToSpeech.QUEUE_FLUSH, null, null)
+                                            } catch (e: Exception) {
+                                                Log.e("MatatuPage", "Error finding matatu route: ${e.message}")
+                                                errorMessage = "An error occurred while searching for matatu routes. Please try again."
+                                                tts?.speak(
+                                                    "An error occurred while searching for matatu routes. Please try again.",
+                                                    TextToSpeech.QUEUE_FLUSH,
+                                                    null,
+                                                    null
+                                                )
                                             }
                                         } else {
                                             Log.e("MatatuPage", "User location is not available")
                                             errorMessage = "Your location is not available. Please enable location services."
-                                            tts?.speak("Your location is not available. Please enable location services.",
-                                                TextToSpeech.QUEUE_FLUSH, null, null)
+                                            tts?.speak(
+                                                "Your location is not available. Please enable location services.",
+                                                TextToSpeech.QUEUE_FLUSH,
+                                                null,
+                                                null
+                                            )
                                         }
                                     } else {
                                         // Otherwise, geocode the name
@@ -965,81 +934,90 @@ fun MatatuPage(navController: NavController) {
                                             if (location != null) {
                                                 destinationLocation = location
                                                 if (userLocation != null) {
-                                                    // First, try to find the nearest matatu stop that serves this destination
-                                                    val result = matatuRouteHandler.findNearestStopToDestination(
-                                                        userLocation!!, location
-                                                    )
+                                                    try {
+                                                        // First, try to find the nearest matatu stop that serves this destination
+                                                        val result = matatuRouteHandler.findNearestStopToDestination(
+                                                            userLocation!!, location
+                                                        )
 
-                                                    if (result != null) {
-                                                        Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
-                                                        // No need to cancel here - already cancelled in the outer scope
-                                                        
-                                                        nearestStopResult = result
-                                                        showingDirectionsToStop = true
-                                                        routePoints = emptyList() // Clear any existing direct route
+                                                        if (result != null) {
+                                                            Log.d("MatatuPage", "Found nearest stop: ${result.nearbyStop.name} and destination stop: ${result.destinationStop.name}")
+                                                            nearestStopResult = result
+                                                            showingDirectionsToStop = true
+                                                            routePoints = emptyList() // Clear any existing direct route
 
-                                                        // Get walking directions to the nearest stop
-                                                        val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
-                                                        fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints: List<GeoPoint>, distance: String, duration: String, directions: List<String> ->
-                                                            walkingRouteToStop = newRoutePoints
-                                                            walkingDirections = directions
-                                                            walkingDistance = distance
-                                                            walkingDuration = duration
-                                                            
-                                                            Log.d("MatatuPage", "Received walking route with ${newRoutePoints.size} points")
-                                                            
-                                                            // UI update happens IMMEDIATELY after walking route is found!
-                                                            showDirectionsPanel = true
-                                                            currentDirectionIndex = 0
-                                                            
-                                                            // Optionally, announce the first walking instruction
-                                                            if (walkingDirections.isNotEmpty()) {
-                                                                tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
-                                                            }
-                                                            
-                                                            // Now fetch the matatu route from nearest stop to destination stop
-                                                            fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
-                                                                matatuRoutePath = matatuRoutePoints
-                                                                matatuRouteDirections = matatuDirections
-                                                                matatuRouteDistance = matatuDistance
-                                                                matatuRouteDuration = matatuDuration
+                                                            // Get walking directions to the nearest stop
+                                                            val nearestStopLocation = GeoPoint(result.nearbyStop.latitude, result.nearbyStop.longitude)
+                                                            fetchWalkingRoute(userLocation!!, nearestStopLocation) { newRoutePoints: List<GeoPoint>, distance: String, duration: String, directions: List<String> ->
+                                                                walkingRouteToStop = newRoutePoints
+                                                                walkingDirections = directions
+                                                                walkingDistance = distance
+                                                                walkingDuration = duration
                                                                 
-                                                                Log.d("MatatuPage", "Received matatu route with ${matatuRoutePoints.size} points")
+                                                                Log.d("MatatuPage", "Received walking route with ${newRoutePoints.size} points")
                                                                 
-                                                                // Clear loading message
-                                                                errorMessage = null
-                                                                
-                                                                // Combine walking and matatu directions for the complete journey
-                                                                val completeDirections = mutableListOf<String>()
-                                                                completeDirections.add("--- Walking to Matatu Stop ---")
-                                                                completeDirections.addAll(directions)
-                                                                completeDirections.add("--- Matatu Journey ---")
-                                                                completeDirections.addAll(matatuDirections)
-                                                                
-                                                                // Update the UI
+                                                                // UI update happens IMMEDIATELY after walking route is found!
                                                                 showDirectionsPanel = true
                                                                 currentDirectionIndex = 0
                                                                 
-                                                                // Announce the result to the user
-//                                                                val announcement = "Found a matatu route to your destination. " +
-//                                                                        "Walk $distance (about $duration) to ${result.nearbyStop.name} and take " +
-//                                                                        "${result.route.name} to ${result.destinationStop.name}. " +
-//                                                                        "The matatu journey will take approximately $matatuDuration."
-//
-//                                                                tts!!.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null)
-//
-//                                                                // Only announce that we found a route, then read the first direction
-//                                                                readRouteAnnouncement(tts!!, selectedSuggestion.name)
-//
-//                                                                // Set the current direction index to the first step
-//                                                                currentDirectionIndex = 0
+                                                                // Optionally, announce the first walking instruction
+                                                                if (walkingDirections.isNotEmpty()) {
+                                                                    tts?.speak(walkingDirections[0], TextToSpeech.QUEUE_FLUSH, null, null)
+                                                                }
+                                                                
+                                                                // Now fetch the matatu route from nearest stop to destination stop
+                                                                fetchMatatuRoute(result) { matatuRoutePoints: List<GeoPoint>, matatuDistance: String, matatuDuration: String, matatuDirections: List<String> ->
+                                                                    matatuRoutePath = matatuRoutePoints
+                                                                    matatuRouteDirections = matatuDirections
+                                                                    matatuRouteDistance = matatuDistance
+                                                                    matatuRouteDuration = matatuDuration
+                                                                    
+                                                                    Log.d("MatatuPage", "Received matatu route with ${matatuRoutePoints.size} points")
+                                                                    
+                                                                    // Clear loading message
+                                                                    errorMessage = null
+                                                                    
+                                                                    // Combine walking and matatu directions for the complete journey
+                                                                    val completeDirections = mutableListOf<String>()
+                                                                    completeDirections.add("--- Walking to Matatu Stop ---")
+                                                                    completeDirections.addAll(directions)
+                                                                    completeDirections.add("--- Matatu Journey ---")
+                                                                    completeDirections.addAll(matatuDirections)
+                                                                    
+                                                                    // Update the UI
+                                                                    showDirectionsPanel = true
+                                                                    currentDirectionIndex = 0
+                                                                }
                                                             }
+                                                        } else {
+                                                            Log.e("MatatuPage", "Could not find a valid matatu route to the destination")
+                                                            errorMessage = "Sorry, I couldn't find a matatu route to ${selectedSuggestion.name}. This location might not be served by any matatu routes in our database."
+                                                            tts?.speak(
+                                                                "Sorry, I couldn't find a matatu route to ${selectedSuggestion.name}. This location might not be served by any matatu routes in our database.",
+                                                                TextToSpeech.QUEUE_FLUSH,
+                                                                null,
+                                                                null
+                                                            )
                                                         }
+                                                    } catch (e: Exception) {
+                                                        Log.e("MatatuPage", "Error finding matatu route: ${e.message}")
+                                                        errorMessage = "An error occurred while searching for matatu routes. Please try again."
+                                                        tts?.speak(
+                                                            "An error occurred while searching for matatu routes. Please try again.",
+                                                            TextToSpeech.QUEUE_FLUSH,
+                                                            null,
+                                                            null
+                                                        )
                                                     }
                                                 }
-
                                             } else {
                                                 errorMessage = "Could not find coordinates for ${selectedSuggestion.name}"
+                                                tts?.speak(
+                                                    "Could not find coordinates for ${selectedSuggestion.name}. Please try a different location.",
+                                                    TextToSpeech.QUEUE_FLUSH,
+                                                    null,
+                                                    null
+                                                )
                                             }
                                         }
                                     }
